@@ -336,6 +336,16 @@ builder: [
   { step:"Protiargument", en:"Counterpoint", starters:["Having said that,…","That's not to say that…","Admittedly, …, but…"] }
 ],
 
+/* Part 3 coach panel: phrase bank by function */
+coach: [
+  { key:"invite", cz:"Zapojit partnera", items:["What do you think?","How do you feel about…?","Would you agree?","What's your take on…?","Shall we start with…?"] },
+  { key:"agree", cz:"Souhlasit a rozvíjet", items:["I couldn't agree more.","That's a good point, and…","Exactly – and building on that…","You're absolutely right, especially…"] },
+  { key:"disagree", cz:"Zdvořile nesouhlasit", items:["I see what you mean, but…","I'm not so sure about that.","That's true to some extent, but…","I take your point; however…"] },
+  { key:"negotiate", cz:"Vyjednávat", items:["How about… as a compromise?","Could we agree on…?","If we had to narrow it down…","I'd be happy to go with that."] },
+  { key:"summarise", cz:"Shrnout", items:["So, to sum up…","So far we've said that…","Going back to what you said…","Let's move on to…"] },
+  { key:"decide", cz:"Rozhodnout", items:["So, which one shall we choose?","I'd go for… because…","So we've agreed that…","It seems we agree to disagree."] }
+],
+
 /* short partner fillers used when the learner passes the turn and set lines have run out */
 partnerGeneric: [
   "Hmm, I see what you mean. What else do you think?",
