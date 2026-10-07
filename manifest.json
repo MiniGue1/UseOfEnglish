@@ -1,7 +1,10 @@
-﻿{
-  "name": "Use of English – C1 trénink",
-  "short_name": "Use of English",
+{
+  "name": "C1 Advanced portál",
+  "short_name": "C1 portál",
+  "description": "Příprava na Cambridge C1 Advanced (CAE): Reading, Use of English, Listening, Writing, Speaking, slovní zásoba a mock testy.",
+  "id": "./",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#EDF0F4",
   "theme_color": "#16213A",
