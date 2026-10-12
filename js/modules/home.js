@@ -426,15 +426,20 @@ function mergeValues(cur, inc){
   }
   return cur === undefined ? inc : cur; /* scalars: keep what is on this device */
 }
+/* writes go through P.store so they are stamped and picked up by the sync (js/sync.js) */
+const nsOf = k => k.slice(PREFIX.length);
+const userKeys = () => allKeys().filter(k => !P.store.localOnly(nsOf(k)));
 function applyBackup(obj, mode){
-  if(mode === "replace") allKeys().forEach(k => localStorage.removeItem(k));
+  if(mode === "replace") userKeys().forEach(k => { if(!(k in obj.data)) P.store.del(nsOf(k)); });
   let n = 0;
   Object.keys(obj.data).forEach(k => {
+    const ns = nsOf(k);
+    if(P.store.localOnly(ns) && ns !== "theme") return;
     const inc = JSON.parse(obj.data[k]);
     const curRaw = localStorage.getItem(k);
     let val = inc;
     if(mode === "merge" && curRaw != null){ try{ val = mergeValues(JSON.parse(curRaw), inc); }catch(e){ val = inc; } }
-    try{ localStorage.setItem(k, JSON.stringify(val)); n++; }catch(e){}
+    if(P.store.set(ns, val)) n++;
   });
   return n;
 }
@@ -471,10 +476,12 @@ function importData(){
   inp.click();
 }
 function wipeAll(){
-  if(!confirm("Smazat VŠECHNA data portálu (pokrok, aktivitu, plán, výsledky mocků) v tomto prohlížeči?")) return;
+  if(!confirm("Smazat VŠECHNA data portálu (pokrok, aktivitu, plán, výsledky mocků)? Pokud jsi přihlášený, smažou se i ve všech propojených zařízeních.")) return;
   const typed = prompt("Tohle nejde vrátit. Pro potvrzení napiš SMAZAT:");
   if(typed == null || typed.trim().toUpperCase() !== "SMAZAT"){ P.toast("Mazání zrušeno"); return; }
-  allKeys().forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+  /* deletions are recorded, so a signed-in account is wiped on every device too */
+  userKeys().forEach(k => P.store.del(nsOf(k)));
+  P.store.del("theme");
   applyTheme("auto");
   P.toast("Všechna data smazána");
   P.show(location.hash.split("/")[1] || "home", true);
@@ -485,7 +492,7 @@ function renderData(stage){
   const size = keys.reduce((s,k) => s + k.length + (localStorage.getItem(k)||"").length, 0);
   const box = document.createElement("section"); box.className = "sheet";
   box.innerHTML = `<h2 style="margin-top:0">Data a záloha</h2>
-    <p>Veškerý pokrok se ukládá jen v tomto prohlížeči (localStorage). Pravidelně si stáhni zálohu – hodí se při přechodu na jiné zařízení nebo po vymazání prohlížeče.</p>
+    <p>Pokrok se ukládá v tomto prohlížeči. Když se přihlásíš Google účtem (tlačítko vpravo nahoře), synchronizuje se mezi všemi tvými zařízeními. Záloha do souboru se hodí i tak.</p>
     <div class="grid"><div class="stat"><b>${keys.length}</b><span>uložených položek</span></div><div class="stat"><b>${(size/1024).toFixed(1)} kB</b><span>velikost dat</span></div><div class="stat"><b>${activity().length}</b><span>záznamů aktivity</span></div></div>
     <div class="row"><button class="btn primary" data-act="exp">Stáhnout zálohu (.json)</button><button class="btn ghost" data-act="imp">Obnovit ze zálohy…</button></div>
     <p class="note" style="margin-top:14px"><b>Sloučit</b> = přidá aktivitu a výsledky ze zálohy k současným, u nastavení ponechá hodnoty z tohoto zařízení. <b>Nahradit</b> = současná data smaže a nahraje zálohu.</p>

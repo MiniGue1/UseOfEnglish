@@ -174,6 +174,8 @@ function load(){
 }
 let st = null;
 const S = () => st || (st = load());
+/* progress synced from another device replaces the cached copy */
+window.addEventListener("cae:remote", () => { st = null; });
 function save(){ P.store.set(NS, st); }
 function touchDay(){ const t = todayStr(); if(!st.days.includes(t)){ st.days.push(t); if(st.days.length > 400) st.days = st.days.slice(-400); } }
 

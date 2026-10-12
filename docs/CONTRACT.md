@@ -19,6 +19,7 @@ Each file you own is self-contained. Never edit files you don't own. If you need
   - `mock` (paper modules only): `{paper:"Reading & Use of English", minutes:90, run(stage, finish)}` – runs a timed full-paper simulation inside `stage`;
     when finished call `finish({correct, total, details?})` (raw marks; mock module converts to Cambridge Scale). Writing/Speaking call `finish({selfScore:0-100})`.
 - `Portal.store.get(ns, default)`, `.set(ns, value)`, `.del(ns)` – localStorage namespaced `cae:`. Use ns starting with your module id (`reading:progress`).
+  Always write through `Portal.store` (never `localStorage` directly): writes are timestamped and synced between the user's devices (js/sync.js). If you cache stored state in memory, drop the cache on `window` event `cae:remote`. Keys named `*:history` / `*:log` are merged as append-only logs.
 - `Portal.logActivity(moduleId, part, correct, total, extra?)` – call after each finished practice set (feeds dashboard + streak).
 - `Portal.util`: `$ esc norm plural shuffle DAY todayStr countdown(el, seconds, onEnd) cambridgeScale(pct) gradeFor(scale)`.
 - `Portal.tts.speak(text,{lang:"en-GB",rate,voiceIdx}) -> Promise`, `Portal.tts.stop()`, `Portal.tts.supported`.
