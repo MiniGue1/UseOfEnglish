@@ -14,6 +14,8 @@ index.html            kostra stránky, pořadí <script> tagů
 manifest.json         PWA manifest (name, theme_color, start_url "./", scope "./")
 sw.js                 service worker – offline cache (seznam PRECACHE + VERSION)
 vercel.json           nastavení Vercelu (cleanUrls, hlavičky cache)
+api/auth.js           Vercel funkce: přihlášení přes Google (session cookie)
+api/sync.js           Vercel funkce: synchronizace postupu mezi zařízeními (Upstash Redis)
 css/app.css           sdílené styly a barevné tokeny (světlý/tmavý režim)
 js/core.js            jádro: router (#/modul/podstránka), Portal.store, logActivity, TTS, utility
 js/data/<název>.js    čistá data: window.DATA.<název> = {...}
@@ -21,6 +23,7 @@ js/modules/<id>.js    moduly: Portal.register({...})
   home.js             Přehled: streak, dnešní plán, slabá místa, studijní plán, ⚙ menu, záloha, registrace SW
   mock.js             Mock test centrum, výsledky a historie, průvodce „O zkoušce“
   uoe.js reading.js listening.js writing.js speaking.js vocab.js
+js/sync.js            tlačítko účtu vpravo nahoře + synchronizace (pravidla slučování v js/sync-merge.js)
 scripts/check-*.js    kontrolní skripty (node), např. node scripts/check-mock.js
 docs/CONTRACT.md      závazná pravidla pro moduly a tvar dat
 _legacy/              původní jednosouborová verze (na Vercel se nenasazuje)
@@ -53,7 +56,7 @@ Mock centrum volá `Portal.modules[id].mock.run(stage, finish)` pro `uoe` + `rea
 
 1. Pushni repozitář na GitHub.
 2. Na vercel.com → *Add New… → Project* → vyber repozitář.
-3. **Framework Preset: Other**, **Build Command: prázdné** (žádný build), **Output Directory: `.`**, Install Command prázdné.
+3. **Framework Preset: Other**, **Build Command: prázdné** (žádný build), **Output Directory: `.`**, Install Command prázdné. Funkce ve složce `api/` Vercel najde sám (Node.js, bez npm závislostí).
 4. *Deploy*. Každý push do hlavní větve se nasadí automaticky.
 
 `vercel.json` už obsahuje `cleanUrls` a hlavičky: JS/CSS/HTML se vždy revalidují (`max-age=0, must-revalidate`, platí i pro `sw.js`), obrázky se cachují dlouhodobě. `.vercelignore` vynechává `_legacy/` a `docs/`.
@@ -71,7 +74,7 @@ Lokálně stačí libovolný statický server, např. `python3 -m http.server 80
 **Po každém nasazení se změnami** zvyš verzi v `sw.js`:
 
 ```js
-const VERSION = "cae-v2";   // bylo "cae-v1"
+const VERSION = "cae-v4";   // bylo "cae-v3"
 ```
 
 Při další návštěvě se nainstaluje nový worker, stáhne čerstvé soubory a staré cache smaže; uživatel uvidí hlášku „Nová verze portálu je připravena – obnov stránku“. Nové soubory nezapomeň přidat do `PRECACHE`.
@@ -84,3 +87,24 @@ Při další návštěvě se nainstaluje nový worker, stáhne čerstvé soubory
 - **Obnovit ze zálohy** – ověří soubor a nabídne *Sloučit* (aktivita a historie se spojí bez duplicit, nastavení zůstane z tohoto zařízení) nebo *Nahradit* (současná data se smažou).
 - **Smazat vše** – po dvojím potvrzení (napsat `SMAZAT`).
 - Vzhled: Auto / Světlý / Tmavý (`data-theme` na `<html>`, uloženo v `cae:theme`).
+
+## Synchronizace mezi zařízeními (Google přihlášení)
+
+Kdo se přihlásí Google účtem (tlačítko ☁ vpravo nahoře), má stejný postup na mobilu i na PC. Pokrok se dál ukládá do prohlížeče, takže web funguje i offline; změny se odešlou pár sekund po uložení, při zavření nebo přepnutí aplikace a každé 2 minuty, a ze serveru přijde, co se mezitím změnilo jinde.
+
+**Pravidla slučování** (`js/sync-merge.js`): u každé položky vyhrává novější verze; logy (`activity`, `*:history`) se slučují, takže se neztratí nic, co jsi dělal na kterém zařízení. Smazání (*Smazat vše*, reset plánu) se přenese taky. Vzhled (světlý/tmavý) zůstává pro každé zařízení zvlášť.
+
+### Zapnutí (jednou)
+
+1. **Google přihlášení** – Client ID portálu je zapsané v `api/_lib.js` (`DEFAULT_CLIENT_ID`; není tajné, prohlížeč ho stejně dostává). Proměnná `GOOGLE_CLIENT_ID` na Vercelu ho může přepsat. V [Google Auth Platform](https://console.cloud.google.com/auth/clients) musí mít klient v *Authorized JavaScript origins* adresu webu (`https://useofenglish.vercel.app`, případně i vlastní doménu) a v *Audience* musí být buď všichni uživatelé v *Test users*, nebo aplikace publikovaná (*Publish app* – pro e-mail a jméno Google ověření nevyžaduje). Client secret se nepoužívá.
+2. **Databáze** – Vercel → projekt → *Storage* → **Upstash for Redis** (free) → *Connect Project*. Vercel přidá proměnné (`KV_REST_API_URL` + `KV_REST_API_TOKEN`, příp. s prefixem); funguje i jiný Redis s `REDIS_URL`.
+3. **Redeploy**, aby funkce nové proměnné načetly (každý další push se nasadí s nimi automaticky).
+
+Dokud něco chybí, tlačítko ☁ ukáže, co přesně (`GET /api/auth` vrací `missing`). Na čistě statickém hostingu bez `api/` se tlačítko vůbec nezobrazí.
+
+### Jak to funguje
+
+- `POST /api/auth` ověří Google ID token přes `oauth2.googleapis.com/tokeninfo` (podpis, platnost, `aud` = tvoje Client ID) a založí náhodnou session (Redis `s:<id>`, 180 dní, cookie `cae_sid` HttpOnly + Secure + SameSite=Lax). Client secret ani další klíče nejsou potřeba.
+- `POST /api/sync` přijme změněné položky `{t, v}` (nebo `{t, d:1}` pro smazané), sloučí je s uloženou kopií (Redis `u:<google-sub>`) a vrátí, co se změnilo od posledního `lastSeq` daného zařízení. Velikost dat je omezená na ~900 kB.
+- Každý zápis přes `Portal.store` si v `cae:__meta` pamatuje čas změny; moduly proto musí ukládat **jen přes `Portal.store`**, jinak se změna nesynchronizuje. Moduly, které si drží stav v paměti, ho mají zahodit při události `cae:remote` (viz `uoe.js`).
+- Testy: `node scripts/check-sync.js` (pravidla slučování + obě funkce s falešným Redisem a Googlem).

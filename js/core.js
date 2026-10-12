@@ -11,11 +11,29 @@ const todayStr = (d=new Date()) => d.getFullYear()+"-"+String(d.getMonth()+1).pa
 
 /* ---- storage: namespaced localStorage, JSON, never throws ---- */
 const PREFIX = "cae:";
+/* Every write stamps the key's modification time in "__meta" (used by js/sync.js to decide which device's
+   copy is newer). Device-local keys (meta, sync state, theme) are never stamped or synced. */
+const META = "__meta";
+const localOnly = ns => ns === META || ns === "theme" || ns.indexOf("sync:") === 0;
+function readMeta(){ try{ return JSON.parse(localStorage.getItem(PREFIX+META)) || {}; }catch(e){ return {}; } }
+function writeMeta(m){ try{ localStorage.setItem(PREFIX+META, JSON.stringify(m)); }catch(e){} }
+function stamp(ns){
+  if(localOnly(ns)) return;
+  const m = readMeta(); m[ns] = Math.max(Date.now(), (m[ns] || 0) + 1); writeMeta(m);
+  try{ window.dispatchEvent(new CustomEvent("cae:change", {detail:{ns}})); }catch(e){}
+}
 const store = {
   get(ns, def){ try{ const v = localStorage.getItem(PREFIX+ns); return v == null ? def : JSON.parse(v); }catch(e){ return def; } },
-  set(ns, val){ try{ localStorage.setItem(PREFIX+ns, JSON.stringify(val)); return true; }catch(e){ return false; } },
-  del(ns){ try{ localStorage.removeItem(PREFIX+ns); }catch(e){} },
-  keys(){ try{ return Object.keys(localStorage).filter(k => k.startsWith(PREFIX)).map(k => k.slice(PREFIX.length)); }catch(e){ return []; } }
+  set(ns, val){ try{ localStorage.setItem(PREFIX+ns, JSON.stringify(val)); }catch(e){ return false; } stamp(ns); return true; },
+  del(ns){ try{ localStorage.removeItem(PREFIX+ns); }catch(e){} stamp(ns); },
+  keys(){ try{ return Object.keys(localStorage).filter(k => k.startsWith(PREFIX)).map(k => k.slice(PREFIX.length)); }catch(e){ return []; } },
+  /* sync support */
+  localOnly, touch: stamp, meta: readMeta,
+  /* write a value that came from another device: keeps its timestamp, fires no change event */
+  applyRemote(ns, item){
+    try{ if(item.d) localStorage.removeItem(PREFIX+ns); else localStorage.setItem(PREFIX+ns, JSON.stringify(item.v)); }catch(e){ return false; }
+    const m = readMeta(); m[ns] = item.t; writeMeta(m); return true;
+  }
 };
 
 /* ---- activity log shared by all modules (feeds dashboard, streak, weak spots) ---- */
@@ -98,6 +116,7 @@ const Portal = {
   modules, order, store, tts, toast,
   util: {$, esc, norm, plural, shuffle, DAY, todayStr, countdown, cambridgeScale, gradeFor},
   logActivity, streak,
+  view(){ return current; },
   /* mod: {id, title, short, blurb, render(stage, ctx), progress?():{done,total}, mock?:{paper,minutes,run(stage,done)}} */
   register(mod){ if(!modules[mod.id]) order.push(mod.id); modules[mod.id] = mod; Portal.renderNav(); if(current === mod.id) Portal.show(mod.id, true); },
   go(id, sub){ location.hash = "#/" + id + (sub ? "/" + sub : ""); },

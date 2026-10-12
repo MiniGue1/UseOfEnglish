@@ -1,7 +1,7 @@
 /* C1 Advanced portál – service worker (offline).
    PO KAŽDÉ ZMĚNĚ SOUBORŮ zvyš VERSION (viz README) – tím se stáhne nová cache a stará se smaže.
    Nový soubor (data/modul) přidej do PRECACHE. */
-const VERSION = "cae-v2";
+const VERSION = "cae-v4";
 const STATIC_CACHE = VERSION + "-static";
 const RUNTIME_CACHE = VERSION + "-runtime";
 
@@ -29,7 +29,9 @@ const PRECACHE = [
   "js/modules/speaking.js",
   "js/modules/vocab.js",
   "js/modules/mock.js",
-  "js/data/uoe-lessons.js"
+  "js/data/uoe-lessons.js",
+  "js/sync-merge.js",
+  "js/sync.js"
 ];
 
 /* Responses that followed a redirect (e.g. Vercel cleanUrls: /index.html -> /) cannot be served to
@@ -92,6 +94,8 @@ self.addEventListener("fetch", event => {
   const req = event.request;
   if(req.method !== "GET") return;
   const url = new URL(req.url);
+  /* login + sync always go to the network */
+  if(url.origin === location.origin && url.pathname.indexOf("/api/") !== -1) return;
 
   /* Google Fonts: cache-first, failures are silent (system fonts fallback in CSS) */
   if(url.origin !== location.origin){
