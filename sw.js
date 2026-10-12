@@ -1,7 +1,7 @@
 /* C1 Advanced portál – service worker (offline).
    PO KAŽDÉ ZMĚNĚ SOUBORŮ zvyš VERSION (viz README) – tím se stáhne nová cache a stará se smaže.
    Nový soubor (data/modul) přidej do PRECACHE. */
-const VERSION = "cae-v1";
+const VERSION = "cae-v2";
 const STATIC_CACHE = VERSION + "-static";
 const RUNTIME_CACHE = VERSION + "-runtime";
 
@@ -28,7 +28,8 @@ const PRECACHE = [
   "js/modules/writing.js",
   "js/modules/speaking.js",
   "js/modules/vocab.js",
-  "js/modules/mock.js"
+  "js/modules/mock.js",
+  "js/data/uoe-lessons.js"
 ];
 
 /* Responses that followed a redirect (e.g. Vercel cleanUrls: /index.html -> /) cannot be served to
