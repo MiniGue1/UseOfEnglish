@@ -15,7 +15,8 @@ const NUM = ["zero","one","two","three","four","five","six","seven","eight","nin
 const LET = "ABCDEFGH";
 
 /* ---------- settings ---------- */
-const S = () => Object.assign({mode:"exam", speed:1, reader:false}, P.store.get(ID+":settings", {}));
+const S = () => Object.assign({mode:"exam", speed:1, reader:false, fast:false, once:false}, P.store.get(ID+":settings", {}));
+const SPEEDS = [0.85, 1, 1.25, 1.5, 1.75, 2];
 const setS = o => P.store.set(ID+":settings", Object.assign(S(), o));
 const ttsOK = () => !!P.tts.supported;
 const voiceCount = () => { try{ return speechSynthesis.getVoices().length; }catch(e){ return 0; } };
@@ -64,6 +65,11 @@ function injectStyle(){
   const st = document.createElement("style"); st.id = "lsn-style";
   st.textContent = `
 .lsn-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.lsn-ctrl[hidden]{display:none}
+.lsn-ctrl .chip{min-height:36px;padding:0 11px;font-size:14px}
+.lsn-ctrl .chips{gap:6px}
+.lsn-keys{margin:-4px 0 8px;font-size:12.5px}
+@media (hover:none){.lsn-keys{display:none}}
 .lsn-ctrl .btn{min-height:40px;padding:0 14px;font-size:15px}
 .lsn-status{font-size:14px;color:var(--muted);margin:0 0 12px;min-height:1.3em}
 .lsn-status b{color:var(--ink)}
@@ -121,13 +127,14 @@ function saveResult(part, id, c, n, missed){
 const allTasks = () => ["p1","p2","p3","p4"].reduce((a,k) => a.concat((D()[k]||[]).map(t => ({k, t}))), []);
 
 /* ---------- build a playable script for a task ----------
-   items: {say, sp, t, v, rec, li} | {wait:sec, label, prep?} | {beep:true} | {mark:"play2"} */
+   items: {say, sp, t, v, rec, li} | {wait:sec, label, prep?} | {beep:true} | {mark:"play2"} | {note:text}
+   fast = no spoken instructions and no pauses (straight to the recordings) */
 function examinerSay(t){ return {say:true, sp:"Examiner", t, v:resolveVoice("EX"), rec:-1, li:-1}; }
 function recItems(rec, recIdx){
   return rec.lines.map((l, li) => ({say:true, sp:l.sp, t:l.t, v:resolveVoice(rec.speakers[l.sp]), rec:recIdx, li}));
 }
 function recordings(k, task){ return k === "p1" ? task.extracts : [task]; }
-function fullScript(k, task, twice){
+function fullScript(k, task, twice, fast){
   const pt = PARTS[k], recs = recordings(k, task), out = [];
   const rub = {
     p1:"Part One. You will hear three different extracts. For questions one to six, choose the answer, A, B or C, which fits best according to what you hear. There are two questions for each extract.",
@@ -135,20 +142,24 @@ function fullScript(k, task, twice){
     p3:"Part Three. " + task.context + " For questions fifteen to twenty, choose the answer, A, B, C or D, which fits best according to what you hear.",
     p4:"Part Four. " + task.context + " Look at Task One and Task Two. While you listen, you must complete both tasks."
   }[k];
-  out.push(examinerSay(rub));
+  if(!fast) out.push(examinerSay(rub));
   recs.forEach((rec, ri) => {
-    if(k === "p1"){ out.push(examinerSay("Extract " + NUM[ri+1] + ". " + rec.context)); }
-    out.push(examinerSay("You now have " + (pt.prep >= 45 ? "forty-five" : pt.prep === 20 ? "twenty" : "fifteen") + " seconds to look at the questions."));
-    out.push({wait:pt.prep, label:"Čas na přečtení otázek", prep:true});
+    if(k === "p1"){ out.push(fast ? {note:"Extract " + (ri+1) + ": " + rec.context} : examinerSay("Extract " + NUM[ri+1] + ". " + rec.context)); }
+    if(!fast){
+      out.push(examinerSay("You now have " + (pt.prep >= 45 ? "forty-five" : pt.prep === 20 ? "twenty" : "fifteen") + " seconds to look at the questions."));
+      out.push({wait:pt.prep, label:"Čas na přečtení otázek", prep:true});
+    }
     out.push({beep:true});
     out.push(...recItems(rec, ri));
     if(twice){
-      out.push({wait:5, label:"Pauza před druhým poslechem"});
-      out.push({beep:true}, examinerSay("Now you'll hear the recording again."), {mark:"play2", rec:ri});
+      if(!fast) out.push({wait:5, label:"Pauza před druhým poslechem"});
+      out.push({beep:true});
+      if(!fast) out.push(examinerSay("Now you'll hear the recording again."));
+      out.push({mark:"play2", rec:ri});
       out.push(...recItems(rec, ri));
     }
   });
-  out.push(examinerSay("That is the end of Part " + NUM[pt.n] + "."));
+  if(!fast) out.push(examinerSay("That is the end of Part " + NUM[pt.n] + "."));
   return out;
 }
 
@@ -165,6 +176,7 @@ Player.prototype.play = async function(from){
     if(g !== this.gen || !this.alive()){ if(!this.alive()) P.tts.stop(); return; }
     if(this.state === "paused"){ await sleep(200); continue; }
     const it = this.items[this.i];
+    this.skip = false;
     this.ui.onItem(this, it);
     if(it.say){
       const speed = S().speed, rate = (it.v.rate || 1) * speed * 0.95;
@@ -174,21 +186,50 @@ Player.prototype.play = async function(from){
         await Promise.race([P.tts.speak(it.t, {lang:"en-GB", rate, pitch:it.v.pitch, voiceIdx:it.v.voiceIdx}), sleep(estMs(it.t, rate))]);
       }
     } else if(it.wait){
-      this.skip = false;
       for(let s = it.wait; s > 0; s--){
         if(g !== this.gen || this.skip || !this.alive()) break;
-        while(this.state === "paused" && g === this.gen) await sleep(200);
-        this.ui.onCount(this, it, s); await sleep(1000);
+        while(this.state === "paused" && g === this.gen && !this.skip) await sleep(200);
+        this.ui.onCount(this, it, s);
+        for(let t = 0; t < 10 && g === this.gen && !this.skip && this.state !== "paused"; t++) await sleep(100);
       }
       this.ui.onCount(this, it, 0);
     } else if(it.beep){ await beep(); }
     if(g !== this.gen) return;
-    if(this.state === "paused") continue;          // interrupted mid-line → replay this line on resume
+    if(this.state === "paused" && !this.skip) continue;   // interrupted mid-line → replay this line on resume
     this.i++;
   }
   this.state = "ended"; this.ui.onState(this); this.ui.onEnd && this.ui.onEnd(this);
 };
-Player.prototype.wait = async function(ms, g){ const end = Date.now() + Math.max(800, ms); while(Date.now() < end){ if(g !== this.gen || this.state === "paused") return; await sleep(100); } };
+Player.prototype.wait = async function(ms, g){ const end = Date.now() + Math.max(800, ms); while(Date.now() < end){ if(g !== this.gen || this.state === "paused" || this.skip) return; await sleep(100); } };
+Player.prototype.active = function(){ return this.state === "playing" || this.state === "paused"; };
+/* skip whatever is playing now: instructions, countdown, tone or one line of the recording */
+Player.prototype.skipItem = function(){ if(this.active()) this.seek(this.i + 1); };
+/* restart the loop at item i (also from pause); the short gap lets the speech engine finish cancelling */
+Player.prototype.seek = function(i){
+  if(!this.active()) return;
+  const g = ++this.gen; P.tts.stop();
+  this.i = Math.max(0, Math.min(i, this.items.length)); this.state = "playing"; this.ui.onState(this);
+  setTimeout(() => { if(g === this.gen) this.play(); }, 80);
+};
+/* next start of a play-through (2nd listening, next extract) – or the end */
+const isIntro = it => !!(it && (it.beep || it.note || it.mark));
+const isStart = it => !!(it && it.say && it.rec >= 0 && it.li === 0);
+Player.prototype.nextBlock = function(){
+  /* standing on the tone / intro of a play-through counts as being in it */
+  let s = this.i; while(s < this.items.length && isIntro(this.items[s])) s++;
+  const from = isStart(this.items[s]) ? s + 1 : this.i + 1;
+  for(let j = from; j < this.items.length; j++){
+    if(!isStart(this.items[j])) continue;
+    while(j - 1 >= from && isIntro(this.items[j-1])) j--; /* keep the tone / extract intro */
+    return this.seek(j);
+  }
+  this.seek(this.items.length);
+};
+Player.prototype.prevLine = function(){
+  const cur = this.items[this.i], from = cur && cur.say && cur.rec >= 0 ? this.i - 1 : this.i;
+  for(let j = from; j >= 0; j--){ const it = this.items[j]; if(it.say && it.rec >= 0) return this.seek(j); }
+  this.seek(0);
+};
 Player.prototype.pause = function(){ if(this.state !== "playing") return; this.state = "paused"; P.tts.stop(); this.ui.onState(this); };
 Player.prototype.resume = function(){ if(this.state !== "paused") return; this.state = "playing"; this.ui.onState(this); };
 Player.prototype.stop = function(){ this.gen++; P.tts.stop(); this.state = "idle"; if(this.ui && this.ui.onState) this.ui.onState(this); };
@@ -299,35 +340,73 @@ function playerUI(root, opts){
         st.innerHTML = `▶ <b>${esc(it.sp === "Examiner" ? "Examiner" : it.sp)}</b> mluví…`;
         if(rd){ rd.hidden = !useReader(); if(useReader()) rd.innerHTML = `<span class="sp">${esc(it.sp)}</span>${esc(it.t)}`; }
       } else if(it.beep){ st.textContent = "♪ tón"; }
+      else if(it.note){ st.innerHTML = `<b>${esc(it.note)}</b>`; }
+      const sk = root.querySelector(".lsn-skip");
+      if(sk) sk.textContent = it.wait ? "⏭ Přeskočit čekání" : it.say && it.rec < 0 ? "⏭ Přeskočit instrukce" : "⏭ Další věta";
     },
-    onCount(p, it, s){ st.innerHTML = s ? `${esc(it.label)}: <b>${s} s</b>` : ""; const sk = root.querySelector(".lsn-skip"); if(sk) sk.hidden = !s; },
+    onCount(p, it, s){ st.innerHTML = s ? `${esc(it.label)}: <b>${s} s</b>` : ""; },
     onEnd(){ st.textContent = "Nahrávka skončila."; if(rd) rd.hidden = true; opts.onEnd && opts.onEnd(); }
   };
 }
-function controlsHTML(strict){
-  const s = S();
+/* options = show the "fast" / "one listening" switches (not in the mock exam) */
+function controlsHTML(strict, options){
+  const s = S(), spd = SPEEDS.includes(s.speed) ? s.speed : 1;
   return `<div class="lsn-ctrl">
     <button class="btn primary lsn-start">▶ Spustit poslech</button>
     <button class="btn ghost lsn-pause" disabled>⏸ Pauza</button>
     <button class="btn ghost lsn-stop" ${strict ? "hidden" : ""} disabled>⏹ Stop</button>
-    <button class="btn ghost lsn-skip" hidden>Přeskočit čekání ⏭</button>
-    <span class="chips" style="margin:0" role="group" aria-label="Rychlost">${[0.85,1,1.1].map(v => `<button class="chip lsn-speed" data-v="${v}" aria-pressed="${s.speed===v}">${v}×</button>`).join("")}</span>
-  </div><p class="lsn-status" aria-live="polite"></p><div class="lsn-reader" hidden></div>`;
+  </div>
+  <div class="lsn-ctrl lsn-nav" hidden>
+    <button class="btn ghost lsn-prev" ${strict ? "hidden" : ""} title="Předchozí věta (←)">⏮ Věta zpět</button>
+    <button class="btn ghost lsn-skip" title="Přeskočit (→)">⏭ Přeskočit</button>
+    <button class="btn ghost lsn-block" title="Na další poslech / úryvek (Shift+→)">⏩ Další poslech</button>
+  </div>
+  <div class="lsn-ctrl"><span class="note">Rychlost</span><span class="chips" style="margin:0" role="group" aria-label="Rychlost">${SPEEDS.map(v => `<button class="chip lsn-speed" data-v="${v}" aria-pressed="${spd===v}">${String(v).replace(".", ",")}×</button>`).join("")}</span></div>
+  ${options ? `<div class="lsn-ctrl"><span class="chips" style="margin:0" role="group" aria-label="Možnosti poslechu">
+    <button class="chip lsn-opt" data-o="fast" aria-pressed="${!!s.fast}" title="Rovnou nahrávka – bez mluvených instrukcí, odpočtů a pauz">⚡ Bez instrukcí a pauz</button>
+    <button class="chip lsn-opt" data-o="once" aria-pressed="${!!s.once}" title="Každá nahrávka jen jednou">1 poslech</button></span></div>` : ""}
+  <p class="note lsn-keys">Klávesy: mezerník pauza · → přeskočit · Shift+→ další poslech${strict ? "" : " · ← věta zpět"} · +/− rychlost</p>
+  <p class="lsn-status" aria-live="polite"></p><div class="lsn-reader" hidden></div>`;
 }
-function wireControls(root, player, start){
+function setSpeed(root, player, v){
+  setS({speed:v});
+  root.querySelectorAll(".lsn-speed").forEach(x => x.setAttribute("aria-pressed", String(+x.dataset.v === v)));
+  const it = player.items[player.i];
+  if(player.state === "playing" && it && it.say && !useReader()) player.seek(player.i); /* replay the line at the new speed */
+}
+function wireControls(root, player, start, strict){
   const $ = s => root.querySelector(s);
   $(".lsn-start").onclick = start;
   $(".lsn-pause").onclick = () => { if(player.state === "paused") player.resume(); else player.pause(); };
   $(".lsn-stop").onclick = () => player.stop();
-  $(".lsn-skip").onclick = () => { player.skip = true; };
-  root.querySelectorAll(".lsn-speed").forEach(b => b.onclick = () => { setS({speed:+b.dataset.v}); root.querySelectorAll(".lsn-speed").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
+  $(".lsn-skip").onclick = () => player.skipItem();
+  $(".lsn-block").onclick = () => player.nextBlock();
+  $(".lsn-prev").onclick = () => player.prevLine();
+  root.querySelectorAll(".lsn-speed").forEach(b => b.onclick = () => setSpeed(root, player, +b.dataset.v));
+  root.querySelectorAll(".lsn-opt").forEach(b => b.onclick = () => {
+    const o = b.dataset.o, v = !S()[o]; setS({[o]: v}); b.setAttribute("aria-pressed", String(v));
+    if(player.active()) P.toast("Platí od dalšího spuštění");
+  });
+  const onKey = e => {
+    if(!root.isConnected){ document.removeEventListener("keydown", onKey); return; }
+    if(e.target && e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    const i = SPEEDS.indexOf(S().speed);
+    if(e.key === " " && player.active()){ if(e.target.closest && e.target.closest("button, a")) return; e.preventDefault(); $(".lsn-pause").click(); }
+    else if(e.key === "ArrowRight" && player.active()){ e.preventDefault(); if(e.shiftKey) player.nextBlock(); else player.skipItem(); }
+    else if(e.key === "ArrowLeft" && player.active() && !strict){ e.preventDefault(); player.prevLine(); }
+    else if(e.key === "+" || e.key === "="){ setSpeed(root, player, SPEEDS[Math.min(SPEEDS.length - 1, (i < 0 ? 1 : i) + 1)]); }
+    else if(e.key === "-" || e.key === "_"){ setSpeed(root, player, SPEEDS[Math.max(0, (i < 0 ? 1 : i) - 1)]); }
+  };
+  document.addEventListener("keydown", onKey);
 }
 function syncButtons(root, p, canStart){
   const $ = s => root.querySelector(s);
-  const playing = p.state === "playing" || p.state === "paused";
+  const playing = p.active();
   $(".lsn-start").disabled = playing || !canStart;
   $(".lsn-pause").disabled = !playing; $(".lsn-pause").textContent = p.state === "paused" ? "▶ Pokračovat" : "⏸ Pauza";
   $(".lsn-stop").disabled = !playing;
+  $(".lsn-nav").hidden = !playing;
 }
 
 function renderTask(stage, k, task, done){
@@ -337,7 +416,7 @@ function renderTask(stage, k, task, done){
     <div class="meta"><span>${esc(pt.label)} · ${esc(task.title)}</span><span class="badge">${strict ? "Zkouškový režim · 2 poslechy" : "Cvičný režim · neomezeně"}</span></div>
     ${!k.startsWith("p1") ? `<p class="note">${esc(task.context)}</p>` : ""}
     ${useReader() ? `<p class="lsn-warn">${ttsOK() ? "Režim čtení je zapnutý." : "Tento prohlížeč neumí syntézu řeči."} Nahrávka se zobrazí <b>po řádcích v reálném tempu</b> – čti ji jako poslech (řádek zmizí, nevracej se).</p>` : ""}
-    ${controlsHTML(strict)}
+    ${controlsHTML(strict, true)}
     <div class="lsn-qs"></div>
     <div class="row"><button class="btn primary lsn-check">Vyhodnotit</button><button class="btn ghost lsn-back">← Zpět</button></div>
     <div class="lsn-res" aria-live="polite"></div>
@@ -350,7 +429,7 @@ function renderTask(stage, k, task, done){
     onState:p => syncButtons(root, p, canStart()),
     onEnd:() => { full = true; plays = 2; syncButtons(root, player, canStart()); if(!strict) $(".lsn-start").textContent = "▶ Přehrát znovu"; }
   }));
-  wireControls(root, player, () => { player.load(fullScript(k, task, true)); player.play(0); });
+  wireControls(root, player, () => { const o = S(); player.load(fullScript(k, task, !o.once, o.fast)); player.play(0); }, strict);
   syncButtons(root, player, true);
   $(".lsn-back").onclick = () => { player.stop(); done ? done(null) : P.go(ID, k); };
   $(".lsn-check").onclick = () => {
@@ -400,7 +479,7 @@ function renderLines(stage, k, task){
       return esc(m[1]) + `<input class="lsn-gapin" data-a="${esc(m[2])}" style="width:${m[2].length+2}ch" aria-label="Chybějící slovo">` + esc(m[3]);
     }).join(" ");
     return `<div class="lsn-line" data-i="${i}"><span class="note">${esc(it.sp)}</span><p class="txt">${html}</p>
-      <div class="row"><button class="btn ghost lsn-p1" data-i="${i}">▶ 1×</button><button class="btn ghost lsn-p75" data-i="${i}">▶ 0.75×</button><button class="btn ghost lsn-ck" data-i="${i}">Zkontrolovat</button><button class="link-btn lsn-sh" data-i="${i}">ukázat celou větu</button></div><p class="hint" aria-live="polite"></p></div>`;
+      <div class="row"><button class="btn ghost lsn-p1" data-i="${i}">▶ 1×</button><button class="btn ghost lsn-p75" data-i="${i}">▶ 0.75×</button><button class="btn ghost lsn-p15" data-i="${i}">▶ 1.5×</button><button class="btn ghost lsn-ck" data-i="${i}">Zkontrolovat</button><button class="link-btn lsn-sh" data-i="${i}">ukázat celou větu</button></div><p class="hint" aria-live="polite"></p></div>`;
   }).join("");
   const say = (i, f) => {
     const it = items[i]; if(useReader()){ P.toast("Syntéza řeči není k dispozici."); return; }
@@ -409,6 +488,7 @@ function renderLines(stage, k, task){
   };
   box.querySelectorAll(".lsn-p1").forEach(b => b.onclick = () => say(+b.dataset.i, 0.95));
   box.querySelectorAll(".lsn-p75").forEach(b => b.onclick = () => say(+b.dataset.i, 0.72));
+  box.querySelectorAll(".lsn-p15").forEach(b => b.onclick = () => say(+b.dataset.i, 1.45));
   box.querySelectorAll(".lsn-ck").forEach(b => b.onclick = () => {
     const ln = b.closest(".lsn-line"); let ok = 0, n = 0;
     ln.querySelectorAll("input").forEach(x => { n++; const good = norm(x.value) === norm(x.dataset.a); if(good) ok++; x.classList.toggle("ok", good); x.classList.toggle("bad", !good); });
@@ -428,7 +508,8 @@ function renderHome(stage){
     <p>Poslech jako u skutečné zkoušky: každá nahrávka zazní <b>dvakrát</b>, před ní je čas na přečtení otázek. Zvuk vytváří syntéza řeči prohlížeče (en-GB hlasy, každý mluvčí jiným hlasem) – zní uměleji než nahrávka, ale formát, rychlost a typy otázek odpovídají zkoušce.</p>
     <div class="lsn-tts"></div>
     <p class="note" style="margin:10px 0 4px">Režim</p>
-    <div class="chips" role="group" aria-label="Režim"><button class="chip lsn-mode" data-v="exam" aria-pressed="${s.mode==="exam"}">Zkouškový (2 poslechy)</button><button class="chip lsn-mode" data-v="practice" aria-pressed="${s.mode==="practice"}">Cvičný (neomezeně, pauza)</button></div>
+    <div class="chips" role="group" aria-label="Režim"><button class="chip lsn-mode" data-v="exam" aria-pressed="${s.mode==="exam"}">Zkouškový (2 poslechy)</button><button class="chip lsn-mode" data-v="practice" aria-pressed="${s.mode==="practice"}">Cvičný (neomezeně, pauza, věta zpět)</button></div>
+    <p class="note" style="margin:8px 0 0">V každé úloze můžeš zrychlit až na 2×, přeskočit instrukce, odpočet i jednotlivé věty a zapnout ⚡ <b>bez instrukcí a pauz</b> nebo <b>1 poslech</b>.</p>
     ${ttsOK() ? `<label class="note"><input type="checkbox" class="lsn-rdr" ${s.reader ? "checked" : ""}> Režim čtení místo zvuku (text po řádcích v reálném tempu)</label>` : ""}
   </section>
   <div class="cards" style="margin-top:16px">${Object.keys(PARTS).map(k => { const list = D()[k] || []; const dn = list.filter(t => d[t.id] != null).length;
@@ -463,14 +544,14 @@ function runMock(stage, finish){
     const {k, task} = plan[idx];
     stage.innerHTML = `<section class="sheet"><div class="meta"><span>Listening · ${PARTS[k].label} (${idx+1}/4)</span><span class="badge">Zkouška · 2 poslechy</span></div>
       ${useReader() ? `<p class="lsn-warn">Bez syntézy řeči – režim čtení po řádcích.</p>` : ""}
-      ${controlsHTML(true)}<div class="lsn-qs"></div>
+      ${controlsHTML(true, false)}<div class="lsn-qs"></div>
       <div class="row"><button class="btn primary lsn-done">${idx < plan.length-1 ? "Další část →" : "Odevzdat Listening"}</button></div></section>`;
     const root = stage.querySelector(".sheet");
     const form = renderQuestions(k, task, root.querySelector(".lsn-qs"));
     let ran = false;
     const player = new Player(playerUI(root, {onState:p => syncButtons(root, p, !ran)}));
     root.querySelector(".lsn-stop").hidden = true;
-    wireControls(root, player, () => { ran = true; player.load(fullScript(k, task, true)); player.play(0); });
+    wireControls(root, player, () => { ran = true; player.load(fullScript(k, task, true)); player.play(0); }, true);
     syncButtons(root, player, true);
     root.querySelector(".lsn-done").onclick = () => {
       player.stop(); const r = grade(k, task, form, root);
