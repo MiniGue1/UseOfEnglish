@@ -22,7 +22,7 @@ module.exports = async function handler(req, res){
   try{
     if(req.method === "GET"){
       const s = cfg.enabled ? await getSession(req) : null;
-      return send(res, 200, {enabled: cfg.enabled, missing: cfg.missing, clientId: cfg.enabled ? cfg.clientId : "", user: s ? publicUser(s) : null});
+      return send(res, 200, {enabled: cfg.enabled, missing: cfg.missing, clientId: cfg.clientId, user: s ? publicUser(s) : null});
     }
     if(!cfg.enabled) return send(res, 503, {error: "not_configured", missing: cfg.missing});
     if(!sameOrigin(req)) return send(res, 403, {error: "origin"});

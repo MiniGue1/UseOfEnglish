@@ -96,13 +96,9 @@ Kdo se přihlásí Google účtem (tlačítko ☁ vpravo nahoře), má stejný p
 
 ### Zapnutí (jednou)
 
-1. **Google Client ID** – [console.cloud.google.com](https://console.cloud.google.com/) → *APIs & Services*:
-   - *OAuth consent screen*: typ **External**, název aplikace, tvůj e-mail. V režimu *Testing* přidej v *Test users* všechny Google účty, které se budou přihlašovat (nebo aplikaci dej *Publish* – pro základní údaje e-mail/jméno Google ověření nevyžaduje).
-   - *Credentials → Create credentials → OAuth client ID* → **Web application** → *Authorized JavaScript origins*: `https://useofenglish.vercel.app` (a případně vlastní doménu). Redirect URI není potřeba.
-   - Zkopíruj **Client ID** (končí na `.apps.googleusercontent.com`).
-2. **Databáze** – Vercel → projekt → *Storage* → *Create Database* → **Upstash for Redis** (free) → *Connect Project*. Vercel sám přidá proměnné `KV_REST_API_URL` a `KV_REST_API_TOKEN` (fungují i `UPSTASH_REDIS_REST_URL`/`_TOKEN`).
-3. **Proměnná** – Vercel → *Settings → Environment Variables*: `GOOGLE_CLIENT_ID` = Client ID z kroku 1 (Production i Preview).
-4. **Redeploy** (*Deployments → … → Redeploy*), aby funkce proměnné načetly.
+1. **Google přihlášení** – Client ID portálu je zapsané v `api/_lib.js` (`DEFAULT_CLIENT_ID`; není tajné, prohlížeč ho stejně dostává). Proměnná `GOOGLE_CLIENT_ID` na Vercelu ho může přepsat. V [Google Auth Platform](https://console.cloud.google.com/auth/clients) musí mít klient v *Authorized JavaScript origins* adresu webu (`https://useofenglish.vercel.app`, případně i vlastní doménu) a v *Audience* musí být buď všichni uživatelé v *Test users*, nebo aplikace publikovaná (*Publish app* – pro e-mail a jméno Google ověření nevyžaduje). Client secret se nepoužívá.
+2. **Databáze** – Vercel → projekt → *Storage* → **Upstash for Redis** (free) → *Connect Project*. Vercel přidá proměnné (`KV_REST_API_URL` + `KV_REST_API_TOKEN`, příp. s prefixem); funguje i jiný Redis s `REDIS_URL`.
+3. **Redeploy**, aby funkce nové proměnné načetly (každý další push se nasadí s nimi automaticky).
 
 Dokud něco chybí, tlačítko ☁ ukáže, co přesně (`GET /api/auth` vrací `missing`). Na čistě statickém hostingu bez `api/` se tlačítko vůbec nezobrazí.
 

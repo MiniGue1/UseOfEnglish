@@ -36,9 +36,11 @@ global.fetch = async (url, opts) => {
   }
   throw new Error("unexpected fetch " + url);
 };
+const ENV_KEYS = ["GOOGLE_CLIENT_ID", "KV_REST_API_URL", "KV_REST_API_TOKEN", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN",
+  "STORAGE_KV_REST_API_URL", "STORAGE_KV_REST_API_TOKEN", "REDIS_URL", "KV_URL"];
 const setEnv = on => {
+  ENV_KEYS.forEach(k => delete process.env[k]);
   if(on){ process.env.GOOGLE_CLIENT_ID = "client-1"; process.env.KV_REST_API_URL = "https://kv.test"; process.env.KV_REST_API_TOKEN = "kv-token"; }
-  else ["GOOGLE_CLIENT_ID", "KV_REST_API_URL", "KV_REST_API_TOKEN", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"].forEach(k => delete process.env[k]);
 };
 const auth = require(path.join(root, "api/auth.js"));
 const sync = require(path.join(root, "api/sync.js"));
@@ -91,12 +93,18 @@ const cookieOf = r => (r.headers["set-cookie"] || "").split(";")[0];
 
   /* ---------- api: not configured ---------- */
   setEnv(false);
-  await test("without env vars the API reports what is missing", async () => {
+  await test("without a database the API reports what is missing; the built-in Google client id is used", async () => {
     const r = await call(auth);
     assert.strictEqual(r.status, 200);
     assert.strictEqual(r.json.enabled, false);
-    assert.strictEqual(r.json.missing.length, 2);
+    assert.strictEqual(r.json.missing.length, 1);
+    assert.ok(/\.apps\.googleusercontent\.com$/.test(r.json.clientId));
     assert.strictEqual((await call(sync, {method: "POST", body: {}})).status, 503);
+  });
+  await test("Redis env vars with a custom prefix are found", async () => {
+    process.env.STORAGE_KV_REST_API_URL = "https://kv.test"; process.env.STORAGE_KV_REST_API_TOKEN = "kv-token";
+    assert.strictEqual((await call(auth)).json.enabled, true);
+    setEnv(false);
   });
 
   /* ---------- api: login ---------- */
@@ -195,6 +203,48 @@ const cookieOf = r => (r.headers["set-cookie"] || "").split(";")[0];
     assert.ok(/Max-Age=0/.test(r.headers["set-cookie"]));
     assert.strictEqual((await call(sync, {method: "POST", cookie: annaPhone, body: {}})).status, 401);
     assert.strictEqual((await call(sync, {method: "POST", cookie: annaPc, body: {}})).status, 200);
+  });
+
+  /* ---------- plain Redis connection (REDIS_URL) instead of the REST API ---------- */
+  await test("works over a plain Redis connection (REDIS_URL)", async () => {
+    const net = require("net");
+    const data = new Map(); let authed = false;
+    const server = net.createServer(sock => {
+      let buf = "";
+      sock.on("data", d => {
+        buf += d.toString("utf8");
+        for(;;){ /* parse *N\r\n($len\r\nval\r\n)* – test values are ASCII */
+          if(!buf.startsWith("*")) return;
+          const lines = buf.split("\r\n"); const n = +lines[0].slice(1);
+          if(lines.length < 1 + n * 2 + 1) return;
+          const args = []; for(let i = 0; i < n; i++) args.push(lines[2 + i * 2]);
+          buf = lines.slice(1 + n * 2).join("\r\n");
+          const [cmd, k, v] = args;
+          let out;
+          if(cmd === "AUTH") { authed = args[args.length - 1] === "pw"; out = authed ? "+OK\r\n" : "-WRONGPASS\r\n"; }
+          else if(!authed) out = "-NOAUTH\r\n";
+          else if(cmd === "GET") out = data.has(k) ? `$${Buffer.byteLength(data.get(k))}\r\n${data.get(k)}\r\n` : "$-1\r\n";
+          else if(cmd === "SET"){ data.set(k, v); out = "+OK\r\n"; }
+          else if(cmd === "DEL") out = ":" + (data.delete(k) ? 1 : 0) + "\r\n";
+          else out = "-ERR unknown\r\n";
+          sock.write(out);
+        }
+      });
+    });
+    await new Promise(r => server.listen(0, "127.0.0.1", r));
+    try{
+      setEnv(false);
+      process.env.REDIS_URL = "redis://default:pw@127.0.0.1:" + server.address().port;
+      process.env.GOOGLE_CLIENT_ID = "client-1";
+      const login = await call(auth, {method: "POST", body: {credential: "tok-anna"}});
+      assert.strictEqual(login.status, 200);
+      const c = cookieOf(login);
+      const r = await call(sync, {method: "POST", cookie: c, body: {lastSeq: 0, changes: {"plan": {t: 5, v: {exam: "2026-12-05", note: "čeština ✓"}}}}});
+      assert.strictEqual(r.status, 200);
+      assert.strictEqual(JSON.parse(data.get("u:anna")).items.plan.v.note, "čeština ✓");
+      process.env.REDIS_URL = "redis://default:wrong@127.0.0.1:" + server.address().port;
+      assert.strictEqual((await call(sync, {method: "POST", cookie: c, body: {}})).status, 500);
+    }finally{ server.close(); setEnv(false); }
   });
 
   console.log(process.exitCode ? "check-sync: FAILED" : `check-sync: ${passed} checks OK`);
