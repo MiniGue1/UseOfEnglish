@@ -56,5 +56,11 @@
     "api/write-check.js": {
       "maxDuration": 180
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/b2",
+      "destination": "/b2/index.html"
+    }
+  ]
 }

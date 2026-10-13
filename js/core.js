@@ -9,8 +9,17 @@ const shuffle = a => { a = a.slice(); for(let i=a.length-1;i>0;i--){const j=Math
 const DAY = 864e5;
 const todayStr = (d=new Date()) => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 
+/* ---- exam level: the C1 portal lives at /, B2 First at /b2 (its page sets window.CAE_LEVEL = "b2").
+   Each level keeps its own progress (own localStorage prefix, own synced copy) – nothing is mixed. ---- */
+const LEVEL = window.CAE_LEVEL === "b2" ? "b2" : "c1";
+const LEVEL_KEY = "portal:level"; /* last level used on this device (not synced) */
+try{
+  if(LEVEL === "c1" && localStorage.getItem(LEVEL_KEY) === "b2" && !/[?&]c1\b/.test(location.search)) location.replace("/b2" + location.hash);
+  else localStorage.setItem(LEVEL_KEY, LEVEL);
+}catch(e){}
+
 /* ---- storage: namespaced localStorage, JSON, never throws ---- */
-const PREFIX = "cae:";
+const PREFIX = LEVEL === "c1" ? "cae:" : LEVEL + ":";
 /* Every write stamps the key's modification time in "__meta" (used by js/sync.js to decide which device's
    copy is newer). Device-local keys (meta, sync state, theme) are never stamped or synced. */
 const META = "__meta";
@@ -50,42 +59,59 @@ function streak(){
   return n;
 }
 
-/* ---- Cambridge English Scale for C1 Advanced ----
-   Reference points from Cambridge's "Converting practice test scores to Cambridge English Scale scores"
-   (raw mark -> 160 / 180 / 200, the maximum mark = 210); linear in between, like the official tables.
-   Note: the Reading score is Parts 1 + 5–8 (max 50), Use of English is Parts 2–4 (max 28). */
-const SCALE_POINTS = {
-  reading:   {max: 50, pts: [[23, 160], [32, 180], [43, 200]]},
-  uoe:       {max: 28, pts: [[11, 160], [16, 180], [23, 200]]},
-  writing:   {max: 40, pts: [[16, 160], [24, 180], [34, 200]]},
-  listening: {max: 30, pts: [[13, 160], [18, 180], [26, 200]]},
-  speaking:  {max: 75, pts: [[30, 160], [45, 180], [66, 200]]}
+/* ---- Cambridge English Scale ----
+   Reference points from Cambridge's "Converting practice test scores to Cambridge English Scale scores":
+   raw mark -> scale score at each CEFR boundary, the maximum mark gets the top of the range; linear in between.
+   C1 Advanced: Reading = Parts 1 + 5–8 (max 50), Use of English = Parts 2–4 (max 28), reported 142–210.
+   B2 First:    Reading = Parts 1 + 5–7 (max 42), Use of English = Parts 2–4 (max 28), reported 122–190. */
+const SCALES = {
+  c1: {floor: 142, top: 210, rough: [[0,120],[30,150],[45,160],[60,180],[75,193],[85,200],[100,210]],
+    grades: [[200, "A"], [193, "B"], [180, "C (C1)"], [160, "B2"]], below: "pod B2",
+    points: {
+      reading:   {max: 50, pts: [[23, 160], [32, 180], [43, 200]]},
+      uoe:       {max: 28, pts: [[11, 160], [16, 180], [23, 200]]},
+      writing:   {max: 40, pts: [[16, 160], [24, 180], [34, 200]]},
+      listening: {max: 30, pts: [[13, 160], [18, 180], [26, 200]]},
+      speaking:  {max: 75, pts: [[30, 160], [45, 180], [66, 200]]}
+    }},
+  b2: {floor: 122, top: 190, rough: [[0,100],[30,130],[40,140],[60,160],[88,180],[100,190]],
+    grades: [[180, "A (C1)"], [173, "B"], [160, "C (B2)"], [140, "B1"]], below: "pod B1",
+    points: {
+      reading:   {max: 42, pts: [[16, 140], [24, 160], [37, 180]]},
+      uoe:       {max: 28, pts: [[11, 140], [18, 160], [24, 180]]},
+      writing:   {max: 40, pts: [[16, 140], [24, 160], [34, 180]]},
+      listening: {max: 30, pts: [[12, 140], [18, 160], [27, 180]]},
+      speaking:  {max: 60, pts: [[24, 140], [36, 160], [54, 180]]}
+    }}
 };
-/* raw marks out of `max` for one skill -> scale score (142–210, C1 Advanced reports from 142) */
+const SC = SCALES[LEVEL];
+const SCALE_POINTS = SC.points;
+/* raw marks out of `max` for one skill -> scale score of the current level */
 function scaleFor(skill, raw, max){
   const d = SCALE_POINTS[skill];
   if(!d) return cambridgeScale(max ? 100 * raw / max : 0);
   const r = Math.max(0, Math.min(d.max, max && max !== d.max ? raw * d.max / max : raw));
-  const pts = d.pts.concat([[d.max, 210]]);
-  const [a, b] = pts; /* below the B2 point: continue the 160–180 slope */
-  if(r <= a[0]) return Math.max(142, Math.round(a[1] - (a[0] - r) * (b[1] - a[1]) / (b[0] - a[0])));
+  const pts = d.pts.concat([[d.max, SC.top]]);
+  const [a, b] = pts; /* below the lowest point: continue its slope */
+  if(r <= a[0]) return Math.max(SC.floor, Math.round(a[1] - (a[0] - r) * (b[1] - a[1]) / (b[0] - a[0])));
   for(let i = 1; i < pts.length; i++) if(r <= pts[i][0]){
     const [x0, y0] = pts[i-1], [x1, y1] = pts[i];
     return Math.round(y0 + (y1 - y0) * (r - x0) / (x1 - x0));
   }
-  return 210;
+  return SC.top;
 }
 /* rough % -> scale, only where the skill is unknown */
 function cambridgeScale(pct){
-  const pts = [[0,120],[30,150],[45,160],[60,180],[75,193],[85,200],[100,210]];
+  const pts = SC.rough;
   for(let i=1;i<pts.length;i++) if(pct <= pts[i][0]){
     const [x0,y0] = pts[i-1], [x1,y1] = pts[i];
     return Math.round(y0 + (y1-y0)*(pct-x0)/(x1-x0));
   }
-  return 210;
+  return SC.top;
 }
 function gradeFor(scale){
-  return scale >= 200 ? "A" : scale >= 193 ? "B" : scale >= 180 ? "C (C1)" : scale >= 160 ? "B2" : "pod B2";
+  const g = SC.grades.find(([min]) => scale >= min);
+  return g ? g[1] : SC.below;
 }
 
 /* ---- text-to-speech (Listening / Speaking examiner voice) ---- */
@@ -138,6 +164,7 @@ function toast(msg){
 const modules = {}; const order = [];
 let current = null;
 const Portal = {
+  level: LEVEL, prefix: PREFIX, scale: {floor: SC.floor, top: SC.top, grades: SC.grades},
   modules, order, store, tts, toast,
   util: {$, esc, norm, plural, shuffle, DAY, todayStr, countdown, cambridgeScale, scaleFor, SCALE_POINTS, gradeFor},
   logActivity, streak,
@@ -165,14 +192,25 @@ window.DATA = window.DATA || {};
 
 function route(){ const id = (location.hash.split("/")[1]) || "home"; Portal.show(id); }
 window.addEventListener("hashchange", route);
-window.addEventListener("DOMContentLoaded", () => { Portal.renderNav(); route(); });
+/* C1 | B2 switch in the top bar */
+function levelSwitch(){
+  const bar = $(".topbar"); if(!bar || bar.querySelector(".lvl")) return;
+  let tools = bar.querySelector(".tools");
+  if(!tools){ tools = document.createElement("div"); tools.className = "tools"; bar.appendChild(tools); }
+  const sw = document.createElement("div"); sw.className = "lvl"; sw.setAttribute("role", "group"); sw.setAttribute("aria-label", "Úroveň zkoušky");
+  sw.innerHTML = [["c1", "C1", "/?c1"], ["b2", "B2", "/b2"]].map(([id, label, href]) =>
+    `<a href="${href}" data-lvl="${id}"${id === LEVEL ? ' aria-current="page"' : ""} title="${id === "c1" ? "C1 Advanced" : "B2 First"}">${label}</a>`).join("");
+  sw.querySelectorAll("a").forEach(a => a.addEventListener("click", () => { try{ localStorage.setItem(LEVEL_KEY, a.dataset.lvl); }catch(e){} }));
+  tools.insertBefore(sw, tools.firstChild);
+}
+window.addEventListener("DOMContentLoaded", () => { levelSwitch(); Portal.renderNav(); route(); });
 
 /* ---- minimal home (overridden if a module registers id "home" later) ---- */
 Portal.register({
   id:"home", title:"Přehled", short:"Přehled", blurb:"",
   render(stage){
     const ms = order.filter(id => id !== "home" && id !== "mock").map(id => modules[id]);
-    stage.innerHTML = `<section class="sheet home"><p>Streak: <b>${streak()}</b> dní v řadě. Vyber část zkoušky C1 Advanced.</p></section>
+    stage.innerHTML = `<section class="sheet home"><p>Streak: <b>${streak()}</b> dní v řadě. Vyber část zkoušky.</p></section>
       <div class="cards" style="margin-top:16px">${ms.map(m => { const p = m.progress ? m.progress() : null; const pct = p && p.total ? Math.round(100*p.done/p.total) : 0;
         return `<button class="card" data-id="${m.id}"><b>${esc(m.title)}</b><span>${esc(m.blurb||"")}</span><i class="pct"><i style="width:${pct}%"></i></i></button>`; }).join("")}</div>`;
     stage.querySelectorAll(".card").forEach(c => c.onclick = () => Portal.go(c.dataset.id));

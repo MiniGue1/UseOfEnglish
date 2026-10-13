@@ -7,6 +7,7 @@ const RUNTIME_CACHE = VERSION + "-runtime";
 
 const PRECACHE = [
   "./",
+  "b2",
   "manifest.json",
   "icon-192.png",
   "icon-512.png",
@@ -103,7 +104,9 @@ self.addEventListener("fetch", event => {
     return; /* any other cross-origin request: let the browser handle it */
   }
   if(req.mode === "navigate"){
-    event.respondWith(staleWhileRevalidate(event, req, STATIC_CACHE, "./"));
+    /* each level has its own page: B2 First lives under /b2 and must never be served the C1 page */
+    const b2 = /^\/b2(\/|$)/.test(url.pathname);
+    event.respondWith(staleWhileRevalidate(event, req, STATIC_CACHE, b2 ? "b2" : "./"));
     return;
   }
   if(isCode(url)){

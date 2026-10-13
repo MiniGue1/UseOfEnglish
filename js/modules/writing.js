@@ -60,8 +60,8 @@ async function runAI(box, t, text, btn, onTake){
   box.innerHTML = `<section class="wr-ai"><p>Hodnotím… obvykle 10–40 sekund.</p></section>`;
   let r, j = null;
   try{
-    r = await fetch("api/write-check", {method: "POST", credentials: "same-origin", cache: "no-store",
-      headers: {"Content-Type": "application/json"}, body: JSON.stringify({task: taskPayload(t), text})});
+    r = await fetch("/api/write-check", {method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({level: P.level, task: taskPayload(t), text})});
     try{ j = await r.json(); }catch(e){}
   }catch(e){ r = null; }
   btn.disabled = false;

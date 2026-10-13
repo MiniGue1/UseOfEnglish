@@ -108,6 +108,21 @@ const geminiOK = obj => () => ({status: 200, json: {candidates: [{content: {part
     assert.strictEqual(res.errors[1].type, "other", "unknown error type mapped");
     assert.strictEqual(r.json.remaining, 1);
   });
+  await test("B2 First checks use the B2 examiner brief and word range", async () => {
+    const ck = [...KV.keys()].find(k => k.startsWith("wc:anna:")), saved = KV.get(ck);
+    geminiCalls = []; gemini = geminiOK(good());
+    KV.set(ck, "0");
+    const r = await call(wc, {method: "POST", cookie, body: {level: "b2", text: TEXT, task: Object.assign({}, TASK, {points: ["parents", "companies"]})}});
+    assert.strictEqual(r.status, 200);
+    const sent = geminiCalls[0].body;
+    assert.ok(/B2 First \(FCE\) Writing examiner/.test(sent.systemInstruction.parts[0].text));
+    const user = sent.contents[0].parts[0].text;
+    assert.ok(/B2 First Writing Part 1/.test(user) && /Write 140–190 words/.test(user) && /BOTH notes and add your own idea/.test(user));
+    KV.set(ck, "0");
+    await call(wc, {method: "POST", cookie, body: {text: TEXT, task: TASK}});
+    assert.ok(/C1 Advanced \(CAE\) Writing examiner/.test(geminiCalls[1].body.systemInstruction.parts[0].text), "default stays C1");
+    KV.set(ck, saved);   /* leave the counter as the later tests expect */
+  });
   await test("Gemini errors and broken output do not use up the daily quota", async () => {
     const before = KV.get([...KV.keys()].find(k => k.startsWith("wc:anna:")));
     gemini = () => ({status: 429, json: {error: {message: "quota"}}});
