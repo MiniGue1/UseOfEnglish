@@ -108,3 +108,13 @@ Dokud něco chybí, tlačítko ☁ ukáže, co přesně (`GET /api/auth` vrací 
 - `POST /api/sync` přijme změněné položky `{t, v}` (nebo `{t, d:1}` pro smazané), sloučí je s uloženou kopií (Redis `u:<google-sub>`) a vrátí, co se změnilo od posledního `lastSeq` daného zařízení. Velikost dat je omezená na ~900 kB.
 - Každý zápis přes `Portal.store` si v `cae:__meta` pamatuje čas změny; moduly proto musí ukládat **jen přes `Portal.store`**, jinak se změna nesynchronizuje. Moduly, které si drží stav v paměti, ho mají zahodit při události `cae:remote` (viz `uoe.js`).
 - Testy: `node scripts/check-sync.js` (pravidla slučování + obě funkce s falešným Redisem a Googlem).
+
+## AI hodnocení Writingu (Google Gemini)
+
+Ve Writingu je u každé úlohy tlačítko **✨ Ohodnotit AI**. Funkce `api/write-check.js` pošle zadání a text modelu Gemini s instrukcemi zkoušejícího C1 Advanced (oficiální kritéria Content, Communicative Achievement, Organisation, Language po 0–5, kalibrace „band 3 = solidní C1“, žádné body za vzácná slova ani násilné inverze, strojený styl se označí). Vrátí body s odůvodněním, chyby s opravou a vysvětlením česky, strojená místa, tři priority a vylepšenou verzi. Body jde jedním klikem převzít do sebehodnocení; poslední výsledek u úlohy se ukládá (a synchronizuje).
+
+- Jen pro přihlášené (Google), limit na účet a den: `WRITE_CHECK_DAILY` (výchozí 20). Nepovedený pokus se do limitu nepočítá.
+- **Zapnutí:** [Google AI Studio](https://aistudio.google.com/apikey) → *Create API key* (pro bezplatnou verzi v projektu **bez** zapnutého billingu / kreditů) → Vercel → *Settings → Environment Variables* → `GEMINI_API_KEY` → Redeploy. Klíč nikdy nepatří do kódu.
+- Model `GEMINI_MODEL` (výchozí `gemini-flash-latest`), úroveň přemýšlení `GEMINI_THINKING` (výchozí `low`). Jedno hodnocení trvá desítky sekund, proto má funkce ve `vercel.json` `maxDuration` 180 s (Fluid compute).
+- Bezplatná verze Gemini může zadané texty používat ke zlepšování modelů Google.
+- Testy: `node scripts/check-write.js` (falešný Gemini a Redis).
