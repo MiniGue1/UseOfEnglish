@@ -820,13 +820,15 @@ function summaryHTML(results, correct, max, timeout, opt){
   const pct = max ? Math.round(100*correct/max) : 0;
   const full = results.length === 4;
   const rows = results.map(r => `<tr><td>Part ${r.p}</td><td>${esc(PART_NAMES[r.p])}<br><span class="note">${esc(r.t.title)}</span></td><td class="num">${r.t.items.length} × ${r.p === 4 ? 2 : 1}</td><td class="num">${r.g.score} / ${r.g.max}</td></tr>`).join("");
-  const scale = full ? U.cambridgeScale(pct) : null;
+  /* Cambridge: Part 1 counts towards Reading, Parts 2–4 are the Use of English score (max 28) */
+  const ue = results.filter(r => r.p !== 1), ueC = ue.reduce((a, r) => a + r.g.score, 0), ueN = ue.reduce((a, r) => a + r.g.max, 0);
+  const scale = full && ueN ? U.scaleFor("uoe", ueC, ueN) : null;
   return `<section class="sheet">
     <p class="note" style="margin:0">${timeout ? "Čas vypršel – odevzdáno automaticky." : "Odevzdáno."}</p>
     <p class="score">${correct} / ${max} <span class="note" style="font-family:var(--sans);font-size:16px">(${pct} %)</span></p>
     <table class="uoe-tbl" aria-label="Body po částech"><thead><tr><th>Část</th><th>Úloha</th><th class="num">Otázky</th><th class="num">Body</th></tr></thead><tbody>${rows}
       ${results.length > 1 ? `<tr class="tot"><td>Celkem</td><td>Use of English</td><td class="num">${results.reduce((a,r) => a + r.t.items.length, 0)}</td><td class="num">${correct} / ${max}</td></tr>` : ""}</tbody></table>
-    ${full ? `<p class="note">Ve zkoušce se těchto 36 bodů sčítá s Reading Part 5–8 (celkem 78 bodů za Reading &amp; Use of English). Orientačně odpovídá ${pct} % zhruba <b>${scale}</b> na Cambridge English Scale (${esc(U.gradeFor(scale))}). Hranice C1 bývá kolem 60 %.</p>` : `<p class="note">Part 1–3: 1 bod za mezeru · Part 4: 2 body za větu (1 bod za každou správnou část).</p>`}
+    ${full ? `<p class="note">Ve zkoušce se těchto 36 bodů sčítá s Reading Part 5–8 (celkem 78 bodů za Reading &amp; Use of English). Use of English (Part 2–4): <b>${ueC} / ${ueN}</b> → podle oficiálního převodu Cambridge zhruba <b>${scale}</b> (${esc(U.gradeFor(scale))}); 180 = 16/28, 200 = 23/28. Part 1 se ve zkoušce počítá do Readingu.</p>` : `<p class="note">Part 1–3: 1 bod za mezeru · Part 4: 2 body za větu (1 bod za každou správnou část).</p>`}
     <div class="row"><button class="btn ghost" data-onlywrong aria-pressed="false">Jen chybné odpovědi</button>${(opt.actions || []).map((a,i) => `<button class="btn ${a.primary ? "primary" : "ghost"}" data-act="${i}">${esc(a.label)}</button>`).join("")}</div>
   </section>`;
 }

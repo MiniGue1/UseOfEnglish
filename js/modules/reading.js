@@ -9,7 +9,7 @@ const LETTERS = "ABCDEFGHIJ";
 
 /* ------------------------------------------------------------------ part metadata ------------------------------------------------------------------ */
 const PARTS = {
-  p5:{key:"p5", n:5, kind:"Multiple choice", cz:"Výběr z možností", first:31, per:1, min:18,
+  p5:{key:"p5", n:5, kind:"Multiple choice", cz:"Výběr z možností", first:31, per:2, min:18,
     desc:"Jeden delší text (550–750 slov – článek, esej, úryvek z knihy) a 6 otázek se čtyřmi možnostmi A–D. Testuje detailní porozumění, názor a postoj autora, účel, tón a význam výrazů či odkazů v kontextu. Otázky jdou ve stejném pořadí jako text.",
     strat:["Text si nejdřív rychle přečti celý – zjisti téma a postoj autora.","Ke každé otázce najdi v textu příslušnou pasáž (otázky jdou po pořadí) a čti ji pozorně.","Odpověz si vlastními slovy dřív, než se podíváš na možnosti.","Stejná slova jako v textu ≠ stejný význam. Pozor na přehnaná tvrzení (proved, always, entirely).","Možnost musí platit celá – jedna nepravdivá část ji vylučuje."]},
   p6:{key:"p6", n:6, kind:"Cross-text multiple matching", cz:"Porovnávání názorů napříč texty", first:37, per:2, min:12,
@@ -459,7 +459,7 @@ function viewHome(stage){
   const done = all.reduce((s, x) => s + x.done, 0), tot = all.reduce((s, x) => s + x.total, 0);
   stage.innerHTML = `<div class="rd">
     <section class="sheet rd-intro"><h2>Reading (Part 5–8)</h2>
-      <p>V písemce <b>Reading &amp; Use of English</b> (90 minut, 8 částí) tvoří části 5–8 čtení s porozuměním – dohromady 36 bodů. Na čtení si počítej zhruba hodinu, zbytek na Use of English.</p>
+      <p>V písemce <b>Reading &amp; Use of English</b> (90 minut, 8 částí) tvoří části 5–8 čtení s porozuměním – dohromady 42 bodů (Part 5 a 7 po 2 bodech za otázku, Part 6 2 body, Part 8 1 bod). Do skóre Reading se ve zkoušce počítá i UoE Part 1 (celkem 50 bodů). Na čtení si počítej zhruba hodinu, zbytek na Use of English.</p>
       <div class="grid" style="margin:12px 0 0"><div class="stat"><b>${done}/${tot}</b><span>úloh hotovo</span></div><div class="stat"><b>${due.length}</b><span>k zopakování dnes</span></div><div class="stat"><b>${wrongN}</b><span>chyb k revizi</span></div></div>
       <div class="row" style="margin-top:12px"><button class="btn ghost rd-review">Chyby a revize</button>${due.length ? `<button class="btn primary rd-due">Zopakovat (${due.length})</button>` : ""}</div>
     </section>

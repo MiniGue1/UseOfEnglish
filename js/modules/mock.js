@@ -4,7 +4,7 @@
 (function(){
 "use strict";
 const P = window.Portal; if(!P) return;
-const {esc, todayStr, countdown, cambridgeScale, gradeFor} = P.util;
+const {esc, todayStr, countdown, cambridgeScale, scaleFor, SCALE_POINTS, gradeFor} = P.util;
 const HIST = "mock:history";
 
 /* ---------------------------------------------------------------- styles */
@@ -56,27 +56,42 @@ const paperById = id => PAPERS.find(p => p.id === id);
 const hasMock = id => { const m = P.modules[id]; return !!(m && m.mock && typeof m.mock.run === "function"); };
 const paperAvail = p => p.sections.filter(hasMock);
 
-/* raw result from finish() -> normalised skill result */
-function convert(res){
+/* raw result from finish() -> normalised skill result; `skill` picks Cambridge's official conversion
+   (self-assessed Writing/Speaking % is read as marks out of 40 / 75) */
+function convert(res, skill){
   if(!res || typeof res !== "object") return null;
-  let pct, raw;
+  let pct, raw, scale;
   if(typeof res.selfScore === "number" && isFinite(res.selfScore)){
     pct = Math.max(0, Math.min(100, res.selfScore)); raw = {self: Math.round(pct)};
+    const d = SCALE_POINTS[skill];
+    scale = d ? scaleFor(skill, pct * d.max / 100, d.max) : cambridgeScale(pct);
   } else if(+res.total > 0){
     const c = Math.max(0, Math.min(+res.total, +res.correct || 0));
     pct = 100*c/(+res.total); raw = {c, n:+res.total};
+    scale = SCALE_POINTS[skill] ? scaleFor(skill, c, +res.total) : cambridgeScale(pct);
+    /* UoE Part 1 belongs to the Reading score in the real exam: keep it so summarize() can move it */
+    const p1 = skill === "uoe" && res.details && res.details.p1;
+    if(p1 && +p1.max > 0) Object.assign(raw, {p1c: Math.max(0, +p1.score || 0), p1n: +p1.max});
   } else return null;
-  const scale = cambridgeScale(pct);
   return Object.assign(raw, {pct: Math.round(pct), scale, grade: gradeFor(scale)});
 }
-/* paper score: R&UoE = UoE + Reading raw marks added together */
+/* skills as Cambridge reports them: Reading = Parts 1 + 5–8, Use of English = Parts 2–4 */
+function officialSkills(sk){
+  const out = Object.assign({}, sk), u = sk.uoe, r = sk.reading;
+  if(u && u.n > 0 && u.p1n && r && r.n > 0){
+    out.uoe = convert({correct: u.c - u.p1c, total: u.n - u.p1n}, "uoe");
+    out.reading = Object.assign(convert({correct: r.c + u.p1c, total: r.n + u.p1n}, "reading"), {withP1: true});
+  }
+  return out;
+}
+/* paper score: raw marks added up; scale = mean of the paper's skill scores */
 function paperScore(paper, skills){
   const rs = paper.sections.map(s => skills[s]).filter(Boolean);
   if(!rs.length) return null;
   let pct;
   if(rs.every(r => r.n > 0)){ const c = rs.reduce((s,r) => s+r.c, 0), n = rs.reduce((s,r) => s+r.n, 0); pct = 100*c/n; }
   else pct = rs.reduce((s,r) => s+r.pct, 0)/rs.length;
-  const scale = cambridgeScale(pct);
+  const scale = Math.round(rs.reduce((s,r) => s + r.scale, 0) / rs.length);
   return {pct: Math.round(pct), scale, grade: gradeFor(scale), complete: rs.length === paper.sections.length};
 }
 /* overall = average of the five skill scores (Reading, UoE, Writing, Listening, Speaking), like the Statement of Results */
@@ -88,8 +103,9 @@ function overall(skills){
 }
 function summarize(att){
   att.papers = {};
-  PAPERS.forEach(p => { const s = paperScore(p, att.skills); if(s) att.papers[p.id] = s; });
-  att.overall = overall(att.skills);
+  att.scored = officialSkills(att.skills);
+  PAPERS.forEach(p => { const s = paperScore(p, att.scored); if(s) att.papers[p.id] = s; });
+  att.overall = overall(att.scored);
   return att;
 }
 const history = () => { const h = P.store.get(HIST, []); return Array.isArray(h) ? h : []; };
@@ -139,7 +155,7 @@ function runPaper(stage, paper, att, cb){
     let called = false;
     const finish = res => {
       if(called || ended) return; called = true;
-      const r = convert(res);
+      const r = convert(res, id);
       if(r){ att.skills[id] = r; P.logActivity("mock", id, r.n > 0 ? r.c : r.pct, r.n > 0 ? r.n : 100, {mock:true}); }
       summarize(att); saveAttempt(att);
       next();
@@ -218,7 +234,7 @@ function report(stage, att){
   stage.innerHTML = "";
   subTabs(stage, "");
   const box = document.createElement("section"); box.className = "sheet"; box.setAttribute("aria-live", "polite");
-  const skillRows = Object.keys(SKILLS).map(k => { const r = att.skills[k]; return `<tr><td>${SKILLS[k]}</td><td class="num">${r ? (r.n > 0 ? `${r.c}/${r.n} (${r.pct} %)` : `${r.self} % (sebehodnocení)`) : "–"}</td><td class="num">${r ? r.scale : "–"}</td></tr>`; }).join("");
+  const skillRows = Object.keys(SKILLS).map(k => { const r = (att.scored || att.skills)[k]; return `<tr><td>${SKILLS[k]}</td><td class="num">${r ? (r.n > 0 ? `${r.c}/${r.n} (${r.pct} %)` : `${r.self} % (sebehodnocení)`) : "–"}</td><td class="num">${r ? r.scale : "–"}</td></tr>`; }).join("");
   box.innerHTML = `<p class="badge">Výsledek mocku · ${esc(att.day)}</p>
     ${o ? `<div class="mk-overall"><span class="mk-big">${o.scale}</span><span>${o.complete ? "celkové orientační skóre" : `průměr z ${o.count} ${o.count === 1 ? "dovednosti" : "dovedností"} (neúplná zkouška)`}<br><b>${esc(gradeNote(o.grade))}</b></span></div>`
       : `<p class="score">Bez výsledku</p><p>Žádná sekce nebyla dokončena.</p>`}
@@ -346,7 +362,18 @@ function renderGuide(stage){
       <tr><td>180–192</td><td><b>Grade C</b> – C1 (180 = hranice úspěchu)</td></tr>
       <tr><td>160–179</td><td>neuspěl/a na C1, ale získáš certifikát úrovně <b>B2</b></td></tr>
       <tr><td>pod 160</td><td>bez certifikátu</td></tr></tbody></table>
-    <p>Na úspěch nepotřebuješ projít každou část – rozhoduje průměr. Slabší Listening tak může vyrovnat silný Writing. Pro C1 obvykle stačí zhruba 60 % bodů, pro grade A kolem 80 % (přesný převod se liší podle verze testu). Odhady v této aplikaci jsou orientační.</p></div></details>
+    <p>Na úspěch nepotřebuješ projít každou část – rozhoduje průměr. Slabší Listening tak může vyrovnat silný Writing. Převod v této aplikaci používá <b>oficiální referenční body Cambridge</b> pro cvičné testy C1 Advanced (mezi nimi lineárně):</p>
+    <table><thead><tr><th>Dovednost</th><th>Max</th><th>160 (B2)</th><th>180 (C1)</th><th>200 (A)</th></tr></thead><tbody>
+      ${Object.entries({reading:"Reading (Part 1 + 5–8)", uoe:"Use of English (Part 2–4)", writing:"Writing", listening:"Listening", speaking:"Speaking"}).map(([k, l]) => `<tr><td>${l}</td><td>${SCALE_POINTS[k].max}</td>${SCALE_POINTS[k].pts.map(p => `<td>${p[0]}</td>`).join("")}</tr>`).join("")}</tbody></table>
+    <p class="note">Úlohy v portálu jsou ale vlastní, ne oficiální, a Writing/Speaking si hodnotíš sám – výsledek je proto jen odhad. Nejpřesnější kontrolu dají <a href="https://www.cambridgeenglish.org/exams-and-tests/qualifications/advanced/preparation/" target="_blank" rel="noopener">oficiální ukázkové testy Cambridge</a> (zdarma, se skutečnými nahrávkami).</p></div></details>
+  <details open><summary>Oficiální materiály Cambridge</summary><div class="body">
+    <ul>
+      <li><a href="https://www.cambridgeenglish.org/exams-and-tests/qualifications/advanced/preparation/" target="_blank" rel="noopener">Příprava na C1 Advanced</a> – ukázkové testy všech částí zdarma, včetně audia k Listeningu.</li>
+      <li><a href="https://www.cambridgeenglish.org/exams-and-tests/qualifications/advanced/format/" target="_blank" rel="noopener">Formát zkoušky</a> – oficiální popis částí a bodování.</li>
+      <li><a href="https://www.cambridgeenglish.org/Images/210434-converting-practice-test-scores-to-cambridge-english-scale-scores.pdf" target="_blank" rel="noopener">Převod bodů z cvičných testů na Cambridge English Scale</a> (PDF).</li>
+      <li>Placené sbírky skutečných testů: <i>Cambridge C1 Advanced Authentic Practice Tests</i> (Cambridge University Press &amp; Assessment).</li>
+    </ul>
+    <p class="note">Portál je trénink formátu a dovedností s vlastními úlohami. Před zkouškou si udělej aspoň jeden oficiální test na čas.</p></div></details>
 
   <details><summary>Time management</summary><div class="body">
     <p><b>Reading &amp; Use of English (90 min)</b> – doporučené rozvržení:</p>
@@ -395,6 +422,6 @@ P.register({
     else if(active === "guide") renderGuide(stage);
     else renderPicker(stage);
   },
-  _internal:{convert, paperScore, overall, summarize, PAPERS, GUIDE, trendSVG}
+  _internal:{convert, officialSkills, paperScore, overall, summarize, PAPERS, GUIDE, trendSVG}
 });
 })();
