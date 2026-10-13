@@ -1,7 +1,7 @@
 /* C1 Advanced portál – service worker (offline).
    PO KAŽDÉ ZMĚNĚ SOUBORŮ zvyš VERSION (viz README) – tím se stáhne nová cache a stará se smaže.
    Nový soubor (data/modul) přidej do PRECACHE. */
-const VERSION = "cae-v8";
+const VERSION = "cae-v9";
 const STATIC_CACHE = VERSION + "-static";
 const RUNTIME_CACHE = VERSION + "-runtime";
 
@@ -32,7 +32,24 @@ const PRECACHE = [
   "js/modules/mock.js",
   "js/data/uoe-lessons.js",
   "js/sync-merge.js",
-  "js/sync.js"
+  "js/sync.js",
+  /* B2 First portal (/b2) */
+  "b2/manifest.json",
+  "b2/js/data/uoe.js",
+  "b2/js/data/uoe-lessons.js",
+  "b2/js/data/reading.js",
+  "b2/js/data/listening.js",
+  "b2/js/data/writing.js",
+  "b2/js/data/speaking.js",
+  "b2/js/data/vocab.js",
+  "b2/js/modules/home.js",
+  "b2/js/modules/uoe.js",
+  "b2/js/modules/reading.js",
+  "b2/js/modules/listening.js",
+  "b2/js/modules/writing.js",
+  "b2/js/modules/speaking.js",
+  "b2/js/modules/vocab.js",
+  "b2/js/modules/mock.js"
 ];
 
 /* Responses that followed a redirect (e.g. Vercel cleanUrls: /index.html -> /) cannot be served to
