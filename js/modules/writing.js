@@ -162,20 +162,28 @@ function analyze(text, task){
   if(rep.length) add("warn", "Často opakovaná slova: " + rep.map(([w, c]) => `${w} (${c}×)`).join(", ") + ". Zvaž synonyma nebo zájmena (this, such, the former…).");
   const low = " " + text.toLowerCase().replace(/\s+/g, " ") + " ";
   const used = LINKERS.filter(l => new RegExp("\\b" + l.replace(/ /g, "\\s+") + "\\b").test(low));
-  add(used.length >= 6 ? "good" : "warn", `Různé spojovací výrazy: ${used.length}${used.length ? " (" + used.slice(0, 10).join(", ") + ")" : ""}. ${used.length >= 6 ? "" : "Přidej rozmanitější spojky (whereas, admittedly, consequently…)."}`);
+  add(used.length >= 4 ? "good" : "warn", `Různé spojovací výrazy: ${used.length}${used.length ? " (" + used.slice(0, 10).join(", ") + ")" : ""}. ${used.length >= 4 ? "" : "Přidej pár přirozených spojek (however, although, so, that said, on the other hand)."}`);
+  /* examiners mark down mechanical, over-formal linking – C1 is about natural, precise English */
+  const heavy = (low.match(/\b(moreover|furthermore|nevertheless|nonetheless|consequently|thus|hence|whereby|albeit|notwithstanding)\b/g) || []).length;
+  if(heavy > 3) add("warn", `Formální spojky (moreover, furthermore, nevertheless…) ${heavy}× – na 250 slov je to moc a text zní strojeně. Často stačí however, also, so, but – nebo žádná spojka.`);
   const formal = task.register !== "informal";
   const cons = text.match(CONTR) || [];
   if(formal && cons.length) add("warn", `Stažené tvary ve formálním/neutrálním textu: ${[...new Set(cons.map(c => c.toLowerCase()))].join(", ")} → piš plné tvary.`);
   if(!formal && !cons.length) add("warn", "Neformální text bez stažených tvarů může působit strojeně (I’m, you’ll, don’t…).");
   if(formal && /\b(gonna|wanna|kids|stuff|guys|cool|awesome)\b|!{2,}/i.test(text)) add("warn", "Hovorové výrazy (kids, stuff, gonna…) nebo vícenásobné vykřičníky nepatří do formálního textu.");
   const op = (low.match(/\bin my opinion\b|\bi think\b/g) || []).length;
-  if(op > 2) add("warn", `„In my opinion / I think“ ${op}× – zkus: I would argue that…, It seems to me that…, I am inclined to believe…`);
+  if(op > 2) add("warn", `„In my opinion / I think“ ${op}× – střídej s: I believe…, In my view…, It seems to me…${formal ? "" : ", I'd say…"}`);
   const pas = (low.match(new RegExp("\\b(?:am|is|are|was|were|be|been|being)\\s+(?:\\w+ly\\s+)?(?:\\w+ed|" + IRREG.join("|") + ")\\b", "g")) || []).length;
   const cond = (low.match(/\bif\b|\bunless\b|\bprovided that\b|\bas long as\b|\bwould\b/g) || []).length;
   const inv = text.split(/(?<=[.!?])\s+|\n/).filter(s => /^\s*(Not only|Never|Rarely|Seldom|Only (when|by|if|once|after|then)|Little|Hardly|No sooner|Under no circumstances|Not until|At no time|Nowhere|Were|Had|Should)\b/.test(s)).length;
   const cleft = (text.match(/\bWhat [^.?!]{3,60}\b(is|was)\b|\bIt (is|was) [^.?!]{2,60} (that|who) /g) || []).length;
   const rel = (low.match(/\b(which|whom|whose|whereby)\b/g) || []).length;
-  add(pas && cond ? "good" : "warn", `Struktury: trpný rod ~${pas}, kondicionály/would ~${cond}, inverze ${inv}, vytýkací věty ${cleft}, vztažné which/whose ${rel}.` + (inv + cleft === 0 ? " Pro Language 5 zkus aspoň jednu inverzi (Not only… / Were it…) nebo cleft (What matters is…)." : ""));
+  /* no structure is compulsory: Language 5 = a wide range used naturally and accurately, not inversions */
+  const fancy = inv + cleft;
+  add(fancy > 2 ? "warn" : "good", `Struktury: trpný rod ~${pas}, kondicionály/would ~${cond}, vztažné which/whose ${rel}${fancy ? `, inverze ${inv}, vytýkací věty ${cleft}` : ""}. ` +
+    (fancy > 2 ? "Inverze a vytýkací věty jsou koření – víc než 1–2 na text zní vyumělkovaně."
+      : !formal ? "V neformálním textu inverze ani trpný rod nepotřebuješ – piš přirozeně, jak bys mluvil(a)."
+      : "Inverze ani vytýkací věty nejsou povinné. Na Language 5 stačí přirozeně a přesně použitá škála souvětí – jedna povedená vedlejší věta je lepší než násilná inverze."));
   const typos = D().typos.filter(([w]) => new RegExp("\\b" + w + "\\b", "i").test(text));
   if(typos.length) add("warn", "Možné překlepy: " + typos.map(([w, r]) => `${w} → ${r}`).join(", ") + ".");
   D().traps.forEach(([re, tip]) => {

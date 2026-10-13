@@ -26,7 +26,7 @@ tags: {
 /* ---------- exam format overview ---------- */
 format: {
   minutes: 90,
-  intro: "Písemná část C1 Advanced trvá 90 minut a má dvě části. Obě mají stejnou váhu a každý text má 220–260 slov. Doporučené rozdělení času: 45 minut na každou část (cca 10 min plánování, 30 min psaní, 5 min kontrola).",
+  intro: "Písemná část C1 Advanced trvá 90 minut a má dvě části. Obě mají stejnou váhu a každý text má 220–260 slov. Doporučené rozdělení času: 45 minut na každou část (cca 10 min plánování, 30 min psaní, 5 min kontrola). Nemusíš psát jako z knihy: C1 je jasná, přesná a přirozená angličtina ve správném registru. Vzácná slova, inverze a „moreover“ v každé větě body nepřidají – spíš je ubírají, když zní strojeně.",
   parts: [
     {name: "Part 1 – Essay (povinná)", text: "Dostaneš téma ve formě poznámek z diskuse/přednášky: otázka a TŘI body. Píšeš esej, ve které rozebereš DVA z těchto bodů a vysvětlíš, který z nich je podle tebe důležitější/účinnější, s argumenty. Tři citované názory z diskuse můžeš (ale nemusíš) využít – vlastními slovy. Registr: neutrální až formální."},
     {name: "Part 2 – výběr ze tří", text: "Vybereš si JEDNU ze tří úloh: dopis/e-mail (formální i neformální), proposal (návrh), report (zpráva) nebo review (recenze). Každá má krátký kontext a 2–3 body, které musíš pokrýt. Esej v Part 2 už není."}
@@ -73,7 +73,7 @@ checklist: [
   "Má text jasné odstavce (esej 4–5, dopis 4–6, report/proposal s nadpisy)?",
   "Začíná každý odstavec topic sentence a jsou odstavce propojené?",
   "Použil(a) jsem rozmanité spojovací výrazy (ne jen and, but, also, so)?",
-  "Je v textu škála struktur: trpný rod, kondicionál, vztažné věty, inverze nebo vytýkací věta, modální slovesa?",
+  "Používám přirozenou škálu struktur (souvětí, vztažné věty, modální slovesa, kde se hodí trpný rod) – přesně a bez násilných inverzí?",
   "Je délka 220–260 slov?",
   "Zkontroloval(a) jsem členy, shodu podmětu s přísudkem, časy a pravopis?"
 ],
@@ -469,7 +469,7 @@ In my view, flexible working hours would bring the greater benefit. Not only can
     {q: "rather than the other way round", tag: "collocation", cz: "Idiomatický obrat „a ne naopak“ – přirozená C1 angličtina."},
     {q: "It must be acknowledged, however, that flexibility is difficult to offer", tag: "passive", cz: "Neosobní pasivum + vsunuté however: ústupka bez „I think“."},
     {q: "Yet the benefits are not guaranteed.", tag: "linker", cz: "Yet na začátku krátké věty = důrazný kontrast; střídání délky vět."},
-    {q: "Not only can they be tailored to the needs of each individual, but they can also", tag: "inversion", cz: "Not only + inverze → but also: klasická struktura pro hodnocení Language."}
+    {q: "Not only can they be tailored to the needs of each individual, but they can also", tag: "inversion", cz: "Not only + inverze → but also: působí dobře, ale jednou za text bohatě stačí – nic se nemusí."}
   ]},
 
  {id: "e05", topic: "Zdraví", title: "Encouraging healthier lifestyles",

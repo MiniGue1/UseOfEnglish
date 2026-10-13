@@ -1,7 +1,7 @@
 /* C1 Advanced portál – service worker (offline).
    PO KAŽDÉ ZMĚNĚ SOUBORŮ zvyš VERSION (viz README) – tím se stáhne nová cache a stará se smaže.
    Nový soubor (data/modul) přidej do PRECACHE. */
-const VERSION = "cae-v5";
+const VERSION = "cae-v6";
 const STATIC_CACHE = VERSION + "-static";
 const RUNTIME_CACHE = VERSION + "-runtime";
 
