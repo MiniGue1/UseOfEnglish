@@ -72,7 +72,16 @@ async function runAI(box, t, text, btn, onTake){
   if(r.status === 429) return msg(j && j.error === "limit" ? `Dnešní limit ${j.daily} AI hodnocení je vyčerpaný – zítra zase.` : "Bezplatná kvóta Gemini je teď vytížená. Zkus to za minutu.");
   if(r.status === 400 && j && j.error === "length") return msg(`Text má ${j.words} slov – AI hodnotí texty od 40 do 700 slov.`);
   if(r.status === 404 || r.status === 405) return msg("AI hodnocení tady není dostupné (běží jen na nasazeném webu).");
-  if(!r.ok || !j || !j.result) return msg("AI hodnocení se nepovedlo (" + r.status + "). Zkus to znovu.");
+  if(!r.ok || !j || !j.result){
+    const d = (j && j.detail) || {}, g = d.gemini, m = String(d.message || "");
+    const why = g === 402 || /credit|billing|prepay/i.test(m) ? "Klíč GEMINI_API_KEY nemá kredit – je z projektu se zapnutým placením. Vytvoř klíč v novém projektu v Google AI Studio (bez billingu = bezplatná verze), ulož ho na Vercel a dej Redeploy."
+      : (g === 400 && /api key/i.test(m)) || d.reason === "API_KEY_INVALID" ? "Klíč GEMINI_API_KEY je neplatný – zkontroluj, že je na Vercelu celý a bez mezer, a dej Redeploy."
+      : g === 403 ? "Klíč nemá přístup ke Gemini API (je omezený nebo je API v projektu vypnuté)."
+      : g === 404 ? "Model nebyl nalezen – na Vercelu nastav GEMINI_MODEL např. na gemini-2.5-flash."
+      : d.reason === "MAX_TOKENS" ? "Odpověď modelu byla useknutá – zkus to znovu, případně kratší text."
+      : "";
+    return msg("AI hodnocení se nepovedlo (" + r.status + (g ? ", Gemini " + g : "") + "). " + esc(why || m || "Zkus to znovu."));
+  }
   const all = P.store.get(NS_AI, {});
   all[t.id] = {t: Date.now(), words: words(text), text, result: j.result};
   const keep = Object.entries(all).sort((a, b) => b[1].t - a[1].t).slice(0, 30);

@@ -130,7 +130,7 @@ async function askGemini(task, text){
   const body = {
     systemInstruction: {parts: [{text: SYSTEM}]},
     contents: [{role: "user", parts: [{text: taskBrief(task) + "\n\nCANDIDATE'S ANSWER (" + wordCount(text) + " words):\n<<<\n" + text + "\n>>>"}]}],
-    generationConfig: {responseMimeType: "application/json", responseJsonSchema: SCHEMA, temperature: 0.2, maxOutputTokens: 8192,
+    generationConfig: {responseMimeType: "application/json", responseJsonSchema: SCHEMA, temperature: 0.2, maxOutputTokens: 32768, /* thinking counts towards this limit */
       /* marking against a fixed rubric needs little deliberation; long thinking made a check take ~90 s */
       thinkingConfig: {thinkingLevel: (process.env.GEMINI_THINKING || "low").toUpperCase()}}
   };
@@ -148,13 +148,17 @@ async function askGemini(task, text){
   if(!r.ok){
     const err = new Error("gemini " + r.status + ": " + ((j && j.error && j.error.message) || ""));
     err.status = r.status === 429 ? 429 : 502;
+    /* shown to the signed-in user so a misconfigured key can be fixed without reading server logs */
+    err.detail = {gemini: r.status, reason: str(j && j.error && j.error.status, 60), message: str(j && j.error && j.error.message, 240)};
     throw err;
   }
   const cand = j && j.candidates && j.candidates[0];
   const out = cand && cand.content && Array.isArray(cand.content.parts)
     ? cand.content.parts.filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("") : "";
-  if(!out) throw Object.assign(new Error("gemini: empty (" + ((cand && cand.finishReason) || (j && j.promptFeedback && j.promptFeedback.blockReason) || "?") + ")"), {status: 502});
-  try{ return JSON.parse(out); }catch(e){ throw Object.assign(new Error("gemini: invalid JSON"), {status: 502}); }
+  const finish = (cand && cand.finishReason) || (j && j.promptFeedback && j.promptFeedback.blockReason) || "";
+  if(!out) throw Object.assign(new Error("gemini: empty (" + finish + ")"), {status: 502, detail: {reason: "EMPTY", message: "Model nevrátil žádný text (" + (finish || "?") + ")."}});
+  try{ return JSON.parse(out); }
+  catch(e){ throw Object.assign(new Error("gemini: invalid JSON (" + finish + ")"), {status: 502, detail: {reason: finish === "MAX_TOKENS" ? "MAX_TOKENS" : "INVALID_JSON", message: "Odpověď modelu nešla přečíst" + (finish ? " (" + finish + ")" : "") + "."}}); }
 }
 
 module.exports = async function handler(req, res){
@@ -194,6 +198,6 @@ module.exports = async function handler(req, res){
     const st = e && e.status;
     if(st === 429) return send(res, 429, {error: "busy"});
     if(st === 413) return send(res, 413, {error: "too_large"});
-    return send(res, st === 502 ? 502 : 500, {error: st === 502 ? "ai" : "server"});
+    return send(res, st === 502 ? 502 : 500, Object.assign({error: st === 502 ? "ai" : "server"}, e && e.detail ? {detail: e.detail} : {}));
   }
 };

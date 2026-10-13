@@ -113,6 +113,12 @@ const geminiOK = obj => () => ({status: 200, json: {candidates: [{content: {part
     gemini = () => ({status: 429, json: {error: {message: "quota"}}});
     const busy = await call(wc, {method: "POST", cookie, body: {text: TEXT, task: TASK}});
     assert.strictEqual(busy.status, 429); assert.strictEqual(busy.json.error, "busy");
+    gemini = () => ({status: 402, json: {error: {code: 402, status: "FAILED_PRECONDITION", message: "Your prepayment credits are depleted."}}});
+    const noCredit = await call(wc, {method: "POST", cookie, body: {text: TEXT, task: TASK}});
+    assert.strictEqual(noCredit.status, 502); assert.strictEqual(noCredit.json.detail.gemini, 402);
+    assert.ok(/credits are depleted/.test(noCredit.json.detail.message), "reason passed to the user");
+    gemini = () => ({status: 200, json: {candidates: [{content: {parts: [{text: "{\"scores\":"}]}, finishReason: "MAX_TOKENS"}]}});
+    assert.strictEqual((await call(wc, {method: "POST", cookie, body: {text: TEXT, task: TASK}})).json.detail.reason, "MAX_TOKENS");
     gemini = () => ({status: 200, json: {candidates: [{content: {parts: [{text: "not json"}]}}]}});
     assert.strictEqual((await call(wc, {method: "POST", cookie, body: {text: TEXT, task: TASK}})).status, 502);
     gemini = () => ({status: 200, json: {promptFeedback: {blockReason: "SAFETY"}}});
