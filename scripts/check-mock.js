@@ -34,6 +34,20 @@ const full = M.convert({correct:78, total:78}); ok(full.scale === 210 && full.gr
 const self = M.convert({selfScore:60}); ok(self.scale === 180 && self.self === 60, "self 60 -> 180");
 ok(M.convert({correct:99, total:10}).c === 10, "correct clamped to total");
 ok(M.convert({selfScore:150}).pct === 100, "selfScore clamped");
+/* official Cambridge reference points (practice-test conversion) */
+const SF = (k, c, n) => M.convert({correct:c, total:n}, k).scale;
+ok(SF("reading",23,50) === 160 && SF("reading",32,50) === 180 && SF("reading",43,50) === 200 && SF("reading",50,50) === 210, "reading 23/32/43/50 -> 160/180/200/210");
+ok(SF("uoe",11,28) === 160 && SF("uoe",16,28) === 180 && SF("uoe",23,28) === 200 && SF("uoe",28,28) === 210, "uoe 11/16/23/28");
+ok(SF("listening",13,30) === 160 && SF("listening",18,30) === 180 && SF("listening",26,30) === 200, "listening 13/18/26");
+ok(M.convert({selfScore:60}, "writing").scale === 180 && M.convert({selfScore:85}, "writing").scale === 200, "writing 24/40 = 60 %, 34/40 = 85 %");
+ok(M.convert({selfScore:60}, "speaking").scale === 180 && M.convert({selfScore:88}, "speaking").scale === 200, "speaking 45/75, 66/75");
+ok(SF("listening",0,30) === 142 && SF("reading",37,50) > 180 && SF("reading",37,50) < 200, "floor 142, interpolation");
+/* UoE Part 1 counts towards Reading, as on the Statement of Results */
+const U36 = M.convert({correct:24, total:36, details:{p1:{score:8, max:8}, p2:{score:6,max:8}}}, "uoe");
+ok(U36.p1c === 8 && U36.p1n === 8, "uoe keeps part 1 marks");
+const OS = M.officialSkills({uoe:U36, reading:M.convert({correct:24, total:42}, "reading")});
+ok(OS.uoe.c === 16 && OS.uoe.n === 28 && OS.uoe.scale === 180, "UoE = parts 2–4 (16/28 -> 180)");
+ok(OS.reading.c === 32 && OS.reading.n === 50 && OS.reading.scale === 180, "Reading = part 1 + 5–8 (32/50 -> 180)");
 /* R&UoE combined = raw marks added */
 const rue = M.PAPERS.find(p => p.id === "rue");
 const ps = M.paperScore(rue, {uoe:M.convert({correct:28, total:28}), reading:M.convert({correct:0, total:50})});

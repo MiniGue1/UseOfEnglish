@@ -11,10 +11,94 @@ const allTasks = () => [...D().part1.map(t => Object.assign({part:1, type:"essay
 const findTask = id => allTasks().find(t => t.id === id);
 const paras = t => esc(t).split(/\n\s*\n/).map(p => "<p>" + p.replace(/\n/g, "<br>") + "</p>").join("");
 
+/* ---------- AI feedback (api/write-check.js – Google Gemini with a Cambridge examiner brief) ---------- */
+const NS_AI = "writing:ai";
+const AI_CRIT = [["content", "content", "Content"], ["communicative", "ca", "Communicative Achievement"], ["organisation", "org", "Organisation"], ["language", "lang", "Language"]];
+const ERR_CZ = {grammar: "gramatika", vocabulary: "slovní zásoba", spelling: "pravopis", punctuation: "interpunkce", register: "registr", "word order": "slovosled", collocation: "kolokace", cohesion: "návaznost", other: "jiné"};
+const taskPayload = t => ({part: t.part, type: t.type, register: t.register, title: t.title, context: t.context, question: t.question,
+  points: t.points, opinions: t.opinions, task: t.task, prompt: t.prompt, require: t.require, instruction: t.instruction});
+/* the learner's text with numbered marks for errors (red) and stilted phrases (yellow) */
+function markedText(text, r){
+  const spans = [];
+  const put = (q, cls, label) => {
+    const at = q ? text.indexOf(q) : -1; if(at < 0) return;
+    if(spans.some(x => at < x.end && at + q.length > x.start)) return;
+    spans.push({start: at, end: at + q.length, cls, label});
+  };
+  r.errors.forEach((e, i) => put(e.quote, "err", i + 1));
+  r.stilted.forEach((e, i) => put(e.quote, "stl", "S" + (i + 1)));
+  spans.sort((a, b) => a.start - b.start);
+  let html = "", pos = 0;
+  spans.forEach(x => { html += esc(text.slice(pos, x.start)) + `<mark class="${x.cls}">${esc(text.slice(x.start, x.end))}<sup>${x.label}</sup></mark>`; pos = x.end; });
+  html += esc(text.slice(pos));
+  return html.split(/\n\s*\n/).map(p => "<p>" + p.replace(/\n/g, "<br>") + "</p>").join("");
+}
+function aiHTML(r, text, meta){
+  const scale = P.util.scaleFor("writing", r.total * 2, 40);
+  return `<section class="wr-ai"><h3>AI hodnocení <span class="badge">${esc(meta.when || "")}</span></h3>
+    <p class="score">${r.total} / 20</p>
+    <p class="note">Kdyby druhá úloha dopadla stejně: ≈ <b>${scale}</b> na Cambridge Scale (${esc(P.util.gradeFor(scale))}).</p>
+    ${r.summary ? `<p>${esc(r.summary)}</p>` : ""}
+    <div class="wr-ai-crit">${AI_CRIT.map(([k, , name]) => `<div><b class="band">${r.scores[k].band}</b><b>${name}</b><br><span>${esc(r.scores[k].why)}</span></div>`).join("")}</div>
+    <div class="row"><button class="btn ghost" data-ai-take>Převzít body do sebehodnocení</button></div>
+    ${r.strengths.length ? `<h4>Co se povedlo</h4><ul>${r.strengths.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    ${r.priorities.length ? `<h4>Na co se zaměřit příště</h4><ol>${r.priorities.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
+    ${r.errors.length || r.stilted.length ? `<h4>Tvůj text</h4><p class="note"><mark class="err" style="padding:0 3px">červeně</mark> chyby, <mark class="stl" style="padding:0 3px">žlutě</mark> místa, která zní strojeně.</p><div class="wr-col">${markedText(text, r)}</div>` : ""}
+    ${r.errors.length ? `<h4>Chyby (${r.errors.length})</h4><ol class="wr-errs">${r.errors.map(e => `<li><span class="badge">${esc(ERR_CZ[e.type] || e.type)}</span> <s>${esc(e.quote)}</s> → <b>${esc(e.fix)}</b><br><span class="note">${esc(e.why)}</span></li>`).join("")}</ol>` : `<p>Žádné výrazné chyby nenalezeny.</p>`}
+    ${r.stilted.length ? `<h4>Zní strojeně</h4><ol class="wr-stl">${r.stilted.map((e, i) => `<li value="${i + 1}"><s>${esc(e.quote)}</s> → <b>${esc(e.natural)}</b><br><span class="note">${esc(e.why)}</span></li>`).join("")}</ol>` : ""}
+    ${r.improved ? `<details><summary><b>Vylepšená verze</b> – tvoje myšlenky v přirozené angličtině C1</summary><div class="wr-col">${paras(r.improved)}</div></details>` : ""}
+    <p class="note" style="margin-top:12px">Hodnotí AI (Google Gemini) podle kritérií Cambridge – je to odhad, ne oficiální skóre.${meta.remaining != null ? ` Dnes zbývá ${meta.remaining} hodnocení.` : ""}</p>
+  </section>`;
+}
+function wireAI(box, r, onTake){
+  const b = box.querySelector("[data-ai-take]");
+  if(b) b.onclick = () => onTake(Object.fromEntries(AI_CRIT.map(([k, id]) => [id, r.scores[k].band])));
+}
+async function runAI(box, t, text, btn, onTake){
+  if(words(text) < 40){ P.toast("Na AI hodnocení napiš aspoň 40 slov."); return; }
+  btn.disabled = true;
+  box.innerHTML = `<section class="wr-ai"><p>Hodnotím… obvykle 10–40 sekund.</p></section>`;
+  let r, j = null;
+  try{
+    r = await fetch("api/write-check", {method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({task: taskPayload(t), text})});
+    try{ j = await r.json(); }catch(e){}
+  }catch(e){ r = null; }
+  btn.disabled = false;
+  const msg = html => { box.innerHTML = `<section class="wr-ai"><p>${html}</p></section>`; };
+  if(!r) return msg("Nepodařilo se spojit se serverem – jsi online?");
+  if(r.status === 401) return msg("Pro AI hodnocení se přihlas Google účtem (tlačítko ☁ vpravo nahoře). Je to jen kvůli tomu, aby bezplatný limit nevyčerpal někdo cizí.");
+  if(r.status === 503) return msg("AI hodnocení zatím není na serveru zapnuté. Chybí: " + esc(((j && j.missing) || []).join(", ")) + ".");
+  if(r.status === 429) return msg(j && j.error === "limit" ? `Dnešní limit ${j.daily} AI hodnocení je vyčerpaný – zítra zase.` : "Bezplatná kvóta Gemini je teď vytížená. Zkus to za minutu.");
+  if(r.status === 400 && j && j.error === "length") return msg(`Text má ${j.words} slov – AI hodnotí texty od 40 do 700 slov.`);
+  if(r.status === 404 || r.status === 405) return msg("AI hodnocení tady není dostupné (běží jen na nasazeném webu).");
+  if(!r.ok || !j || !j.result) return msg("AI hodnocení se nepovedlo (" + r.status + "). Zkus to znovu.");
+  const all = P.store.get(NS_AI, {});
+  all[t.id] = {t: Date.now(), words: words(text), text, result: j.result};
+  const keep = Object.entries(all).sort((a, b) => b[1].t - a[1].t).slice(0, 30);
+  P.store.set(NS_AI, Object.fromEntries(keep));
+  box.innerHTML = aiHTML(j.result, text, {when: "právě teď", remaining: j.remaining});
+  wireAI(box, j.result, onTake);
+  box.scrollIntoView({behavior: "smooth", block: "start"});
+}
+
 /* ---------- scoped styles ---------- */
 if(!document.getElementById("wr-style")){
   const st = document.createElement("style"); st.id = "wr-style";
   st.textContent = `
+.wr-ai{border:1.5px solid var(--ink);border-radius:8px;padding:14px 16px;margin:14px 0}
+.wr-ai h3{margin-top:0}
+.wr-ai .score{margin:0}
+.wr-ai-crit{display:grid;gap:10px;margin:12px 0}
+.wr-ai-crit div{border-top:1px solid var(--rule);padding-top:8px}
+.wr-ai-crit b.band{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:14px;background:var(--ink);color:var(--paper);margin-right:8px;font-family:var(--sans)}
+.wr-ai mark.err{background:color-mix(in srgb,var(--red) 18%,transparent);color:inherit;border-bottom:2px solid var(--red)}
+.wr-ai mark.stl{background:var(--hl);color:inherit}
+.wr-ai mark sup{font-family:var(--sans);font-size:10px;font-weight:600;margin-left:1px}
+.wr-ai .wr-col{font-family:var(--serif);font-size:16.5px;line-height:1.65;border:1px solid var(--rule);border-radius:6px;padding:8px 12px;margin:8px 0}
+.wr-ai ol.wr-errs,.wr-ai ol.wr-stl{padding-left:22px;margin:6px 0 12px}
+.wr-ai ol li{margin:0 0 8px}
+.wr-ai s{text-decoration-color:var(--red);color:var(--muted)}
 .wr-notes{border:1.5px solid var(--ink);border-radius:4px;padding:10px 14px;margin:10px 0}
 .wr-notes ul{margin:6px 0 0;padding-left:20px}
 .wr-bubbles{display:grid;gap:8px;margin:10px 0}
@@ -162,20 +246,28 @@ function analyze(text, task){
   if(rep.length) add("warn", "Často opakovaná slova: " + rep.map(([w, c]) => `${w} (${c}×)`).join(", ") + ". Zvaž synonyma nebo zájmena (this, such, the former…).");
   const low = " " + text.toLowerCase().replace(/\s+/g, " ") + " ";
   const used = LINKERS.filter(l => new RegExp("\\b" + l.replace(/ /g, "\\s+") + "\\b").test(low));
-  add(used.length >= 6 ? "good" : "warn", `Různé spojovací výrazy: ${used.length}${used.length ? " (" + used.slice(0, 10).join(", ") + ")" : ""}. ${used.length >= 6 ? "" : "Přidej rozmanitější spojky (whereas, admittedly, consequently…)."}`);
+  add(used.length >= 4 ? "good" : "warn", `Různé spojovací výrazy: ${used.length}${used.length ? " (" + used.slice(0, 10).join(", ") + ")" : ""}. ${used.length >= 4 ? "" : "Přidej pár přirozených spojek (however, although, so, that said, on the other hand)."}`);
+  /* examiners mark down mechanical, over-formal linking – C1 is about natural, precise English */
+  const heavy = (low.match(/\b(moreover|furthermore|nevertheless|nonetheless|consequently|thus|hence|whereby|albeit|notwithstanding)\b/g) || []).length;
+  if(heavy > 3) add("warn", `Formální spojky (moreover, furthermore, nevertheless…) ${heavy}× – na 250 slov je to moc a text zní strojeně. Často stačí however, also, so, but – nebo žádná spojka.`);
   const formal = task.register !== "informal";
   const cons = text.match(CONTR) || [];
   if(formal && cons.length) add("warn", `Stažené tvary ve formálním/neutrálním textu: ${[...new Set(cons.map(c => c.toLowerCase()))].join(", ")} → piš plné tvary.`);
   if(!formal && !cons.length) add("warn", "Neformální text bez stažených tvarů může působit strojeně (I’m, you’ll, don’t…).");
   if(formal && /\b(gonna|wanna|kids|stuff|guys|cool|awesome)\b|!{2,}/i.test(text)) add("warn", "Hovorové výrazy (kids, stuff, gonna…) nebo vícenásobné vykřičníky nepatří do formálního textu.");
   const op = (low.match(/\bin my opinion\b|\bi think\b/g) || []).length;
-  if(op > 2) add("warn", `„In my opinion / I think“ ${op}× – zkus: I would argue that…, It seems to me that…, I am inclined to believe…`);
+  if(op > 2) add("warn", `„In my opinion / I think“ ${op}× – střídej s: I believe…, In my view…, It seems to me…${formal ? "" : ", I'd say…"}`);
   const pas = (low.match(new RegExp("\\b(?:am|is|are|was|were|be|been|being)\\s+(?:\\w+ly\\s+)?(?:\\w+ed|" + IRREG.join("|") + ")\\b", "g")) || []).length;
   const cond = (low.match(/\bif\b|\bunless\b|\bprovided that\b|\bas long as\b|\bwould\b/g) || []).length;
   const inv = text.split(/(?<=[.!?])\s+|\n/).filter(s => /^\s*(Not only|Never|Rarely|Seldom|Only (when|by|if|once|after|then)|Little|Hardly|No sooner|Under no circumstances|Not until|At no time|Nowhere|Were|Had|Should)\b/.test(s)).length;
   const cleft = (text.match(/\bWhat [^.?!]{3,60}\b(is|was)\b|\bIt (is|was) [^.?!]{2,60} (that|who) /g) || []).length;
   const rel = (low.match(/\b(which|whom|whose|whereby)\b/g) || []).length;
-  add(pas && cond ? "good" : "warn", `Struktury: trpný rod ~${pas}, kondicionály/would ~${cond}, inverze ${inv}, vytýkací věty ${cleft}, vztažné which/whose ${rel}.` + (inv + cleft === 0 ? " Pro Language 5 zkus aspoň jednu inverzi (Not only… / Were it…) nebo cleft (What matters is…)." : ""));
+  /* no structure is compulsory: Language 5 = a wide range used naturally and accurately, not inversions */
+  const fancy = inv + cleft;
+  add(fancy > 2 ? "warn" : "good", `Struktury: trpný rod ~${pas}, kondicionály/would ~${cond}, vztažné which/whose ${rel}${fancy ? `, inverze ${inv}, vytýkací věty ${cleft}` : ""}. ` +
+    (fancy > 2 ? "Inverze a vytýkací věty jsou koření – víc než 1–2 na text zní vyumělkovaně."
+      : !formal ? "V neformálním textu inverze ani trpný rod nepotřebuješ – piš přirozeně, jak bys mluvil(a)."
+      : "Inverze ani vytýkací věty nejsou povinné. Na Language 5 stačí přirozeně a přesně použitá škála souvětí – jedna povedená vedlejší věta je lepší než násilná inverze."));
   const typos = D().typos.filter(([w]) => new RegExp("\\b" + w + "\\b", "i").test(text));
   if(typos.length) add("warn", "Možné překlepy: " + typos.map(([w, r]) => `${w} → ${r}`).join(", ") + ".");
   D().traps.forEach(([re, tip]) => {
@@ -264,7 +356,8 @@ function renderTask(stage, id){
     <div style="margin-top:14px">${editorHTML(t, (drafts[t.id] || {}).text)}</div>
     <p class="note" data-saved aria-live="polite"></p>
     <h3>Kontrola před odevzdáním</h3><div class="wr-check">${D().checklist.map((c, i) => `<label><input type="checkbox" data-ck="${i}"> <span>${esc(c)}</span></label>`).join("")}</div>
-    <div class="row" style="margin-top:10px"><button class="btn ghost" data-an>Analyzovat (heuristika)</button><button class="btn primary" data-submit>Odevzdat a porovnat</button></div>
+    <div class="row" style="margin-top:10px"><button class="btn ghost" data-an>Analyzovat (heuristika)</button><button class="btn ghost" data-ai>✨ Ohodnotit AI</button><button class="btn primary" data-submit>Odevzdat a porovnat</button></div>
+    <div data-ai-out aria-live="polite"></div>
     <div data-anout aria-live="polite" style="margin-top:12px"></div>
     <div data-result></div></section>`;
   wireNav(stage);
@@ -281,6 +374,20 @@ function renderTask(stage, id){
   };
   const anOut = stage.querySelector("[data-anout]");
   stage.querySelector("[data-an]").onclick = () => { anOut.innerHTML = `<h3>Heuristická zpětná vazba</h3>` + analysisHTML(analyze(ta.value, t)); };
+  /* AI feedback: "take the marks" opens the self-assessment (if needed) and pre-selects the AI bands */
+  const aiOut = stage.querySelector("[data-ai-out]"), resBox = stage.querySelector("[data-result]");
+  const takeMarks = bands => {
+    if(!resBox.querySelector(".wr-crit")) showResult(resBox, t, ta.value);
+    Object.entries(bands).forEach(([id, v]) => resBox.querySelectorAll(`.wr-crit[data-crit="${id}"] .chip`).forEach(c => c.setAttribute("aria-pressed", String(+c.dataset.v === v))));
+    resBox.querySelector(".wr-crit").scrollIntoView({behavior: "smooth", block: "start"});
+    P.toast("Body z AI předvyplněné – uprav je, pokud nesouhlasíš, a ulož.");
+  };
+  stage.querySelector("[data-ai]").onclick = e => runAI(aiOut, t, ta.value, e.currentTarget, takeMarks);
+  const lastAI = P.store.get(NS_AI, {})[t.id];
+  if(lastAI && lastAI.result){
+    aiOut.innerHTML = `<p class="note">Poslední AI hodnocení: ${lastAI.result.total}/20 (${new Date(lastAI.t).toLocaleDateString("cs-CZ")}) · <button class="link-btn" data-ai-last>zobrazit</button></p>`;
+    aiOut.querySelector("[data-ai-last]").onclick = () => { aiOut.innerHTML = aiHTML(lastAI.result, lastAI.text || ta.value, {when: new Date(lastAI.t).toLocaleString("cs-CZ")}); wireAI(aiOut, lastAI.result, takeMarks); };
+  }
   stage.querySelector("[data-submit]").onclick = () => {
     if(words(ta.value) < 50){ P.toast("Napiš nejdřív aspoň 50 slov."); return; }
     if(timer) timer.stop();

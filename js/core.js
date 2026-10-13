@@ -50,7 +50,32 @@ function streak(){
   return n;
 }
 
-/* ---- approximate Cambridge Scale (160–210). Orientační, ne oficiální převod. ---- */
+/* ---- Cambridge English Scale for C1 Advanced ----
+   Reference points from Cambridge's "Converting practice test scores to Cambridge English Scale scores"
+   (raw mark -> 160 / 180 / 200, the maximum mark = 210); linear in between, like the official tables.
+   Note: the Reading score is Parts 1 + 5–8 (max 50), Use of English is Parts 2–4 (max 28). */
+const SCALE_POINTS = {
+  reading:   {max: 50, pts: [[23, 160], [32, 180], [43, 200]]},
+  uoe:       {max: 28, pts: [[11, 160], [16, 180], [23, 200]]},
+  writing:   {max: 40, pts: [[16, 160], [24, 180], [34, 200]]},
+  listening: {max: 30, pts: [[13, 160], [18, 180], [26, 200]]},
+  speaking:  {max: 75, pts: [[30, 160], [45, 180], [66, 200]]}
+};
+/* raw marks out of `max` for one skill -> scale score (142–210, C1 Advanced reports from 142) */
+function scaleFor(skill, raw, max){
+  const d = SCALE_POINTS[skill];
+  if(!d) return cambridgeScale(max ? 100 * raw / max : 0);
+  const r = Math.max(0, Math.min(d.max, max && max !== d.max ? raw * d.max / max : raw));
+  const pts = d.pts.concat([[d.max, 210]]);
+  const [a, b] = pts; /* below the B2 point: continue the 160–180 slope */
+  if(r <= a[0]) return Math.max(142, Math.round(a[1] - (a[0] - r) * (b[1] - a[1]) / (b[0] - a[0])));
+  for(let i = 1; i < pts.length; i++) if(r <= pts[i][0]){
+    const [x0, y0] = pts[i-1], [x1, y1] = pts[i];
+    return Math.round(y0 + (y1 - y0) * (r - x0) / (x1 - x0));
+  }
+  return 210;
+}
+/* rough % -> scale, only where the skill is unknown */
 function cambridgeScale(pct){
   const pts = [[0,120],[30,150],[45,160],[60,180],[75,193],[85,200],[100,210]];
   for(let i=1;i<pts.length;i++) if(pct <= pts[i][0]){
@@ -114,7 +139,7 @@ const modules = {}; const order = [];
 let current = null;
 const Portal = {
   modules, order, store, tts, toast,
-  util: {$, esc, norm, plural, shuffle, DAY, todayStr, countdown, cambridgeScale, gradeFor},
+  util: {$, esc, norm, plural, shuffle, DAY, todayStr, countdown, cambridgeScale, scaleFor, SCALE_POINTS, gradeFor},
   logActivity, streak,
   view(){ return current; },
   /* mod: {id, title, short, blurb, render(stage, ctx), progress?():{done,total}, mock?:{paper,minutes,run(stage,done)}} */
