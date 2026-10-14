@@ -91,7 +91,7 @@ function balance(id, keys, n){
     checkOpts(ex.opts, ex.correct, eid, 3);
     checkQ(ex, eid, ex);
     const w = recWords(ex);
-    if(w < 60 || w > 125) warn(eid, "extract has " + w + " words (aim 70–110, ~30–40 s)");
+    if(w < 60 || w > 125) warn(eid, "extract has " + w + " words (expected 60–125, ~30–40 s)");
     stats.push(["p1", eid, w]);
   });
   balance(t.id, (t.extracts || []).map(x => x.correct), 3);
@@ -129,7 +129,7 @@ function balance(id, keys, n){
     }
   });
   const w = recWords(t);
-  if(w < 400 || w > 650) warn(t.id, "monologue has " + w + " words (aim 430–600, ~3 min)");
+  if(w < 400 || w > 650) warn(t.id, "monologue has " + w + " words (expected 400–650, ~3 min)");
   stats.push(["p2", t.id, w]);
 });
 
@@ -161,7 +161,7 @@ function balance(id, keys, n){
   if(Object.keys(seen).length !== 5) err(t.id, "must cover speakers 1–5");
   sp.forEach(s => {
     const w = (t.lines || []).filter(l => l.sp === s).reduce((a, l) => a + wc(l.t), 0);
-    if(w < 60 || w > 130) warn(t.id + " " + s, w + " words (aim 70–115, ~30 s)");
+    if(w < 60 || w > 130) warn(t.id + " " + s, w + " words (expected 60–130, ~30 s)");
     stats.push(["p3", t.id + " " + s, w]);
   });
 });
@@ -187,7 +187,7 @@ function balance(id, keys, n){
   });
   balance(t.id, (t.qs || []).map(q => q.correct), 3);
   const w = recWords(t);
-  if(w < 480 || w > 800) warn(t.id, "interview has " + w + " words (aim 520–720, ~3–4 min)");
+  if(w < 480 || w > 800) warn(t.id, "interview has " + w + " words (expected 480–800, ~3–4 min)");
   stats.push(["p4", t.id, w]);
 });
 
