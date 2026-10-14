@@ -203,7 +203,20 @@ function levelSwitch(){
   sw.querySelectorAll("a").forEach(a => a.addEventListener("click", () => { try{ localStorage.setItem(LEVEL_KEY, a.dataset.lvl); }catch(e){} }));
   tools.insertBefore(sw, tools.firstChild);
 }
-window.addEventListener("DOMContentLoaded", () => { levelSwitch(); Portal.renderNav(); route(); });
+/* No keyboard help in answer fields, as in the real exam: no autocorrect, no word suggestions, no capitalising.
+   iOS reads autocorrect="off"; Chrome on Android turns autocomplete="off" into "no suggestions" for the keyboard.
+   An element can keep its own value for an attribute (e.g. the name field's autocomplete="given-name"). */
+const TYPING = 'input:not([type]), input[type="text"], input[type="search"], textarea';
+const NO_ASSIST = {autocomplete: "off", autocorrect: "off", autocapitalize: "none", spellcheck: "false"};
+function noAssist(el){ for(const k in NO_ASSIST) if(!el.hasAttribute(k)) el.setAttribute(k, NO_ASSIST[k]); el.setAttribute("autocorrect", "off"); }
+function noAssistIn(node){
+  if(node.nodeType !== 1) return;
+  if(node.matches(TYPING)) noAssist(node);
+  node.querySelectorAll(TYPING).forEach(noAssist);
+}
+try{ new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(noAssistIn))).observe(document.documentElement, {childList: true, subtree: true}); }catch(e){}
+document.addEventListener("focusin", e => { if(e.target && e.target.matches && e.target.matches(TYPING)) noAssist(e.target); });
+window.addEventListener("DOMContentLoaded", () => { levelSwitch(); Portal.renderNav(); route(); noAssistIn(document.body); });
 
 /* ---- minimal home (overridden if a module registers id "home" later) ---- */
 Portal.register({

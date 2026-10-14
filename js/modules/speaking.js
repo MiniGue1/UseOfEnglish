@@ -26,7 +26,7 @@ function injectCSS(){
 .spk-warn{font-size:14px;border-left:3px solid var(--red);padding:4px 0 4px 12px;margin:10px 0}
 .spk-settings{display:grid;gap:10px;margin:8px 0 0}
 .spk-settings label{display:flex;gap:10px;align-items:center;font-size:15px}
-.spk-settings input[type=checkbox]{width:20px;height:20px}
+.spk-settings input[type=checkbox]{width:20px;height:20px;flex:none}
 .spk-studio{display:grid;gap:14px}
 .spk-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
 .spk-head .spk-tl{display:flex;gap:8px;align-items:center}
