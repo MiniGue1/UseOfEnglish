@@ -108,11 +108,32 @@ const geminiOK = obj => () => ({status: 200, json: {candidates: [{content: {part
     assert.strictEqual(res.errors[1].type, "other", "unknown error type mapped");
     assert.strictEqual(r.json.remaining, 1);
   });
+  await test("B2 First checks use the B2 examiner brief and word range", async () => {
+    const ck = [...KV.keys()].find(k => k.startsWith("wc:anna:")), saved = KV.get(ck);
+    geminiCalls = []; gemini = geminiOK(good());
+    KV.set(ck, "0");
+    const r = await call(wc, {method: "POST", cookie, body: {level: "b2", text: TEXT, task: Object.assign({}, TASK, {points: ["parents", "companies"]})}});
+    assert.strictEqual(r.status, 200);
+    const sent = geminiCalls[0].body;
+    assert.ok(/B2 First \(FCE\) Writing examiner/.test(sent.systemInstruction.parts[0].text));
+    const user = sent.contents[0].parts[0].text;
+    assert.ok(/B2 First Writing Part 1/.test(user) && /Write 140–190 words/.test(user) && /BOTH notes and add your own idea/.test(user));
+    KV.set(ck, "0");
+    await call(wc, {method: "POST", cookie, body: {text: TEXT, task: TASK}});
+    assert.ok(/C1 Advanced \(CAE\) Writing examiner/.test(geminiCalls[1].body.systemInstruction.parts[0].text), "default stays C1");
+    KV.set(ck, saved);   /* leave the counter as the later tests expect */
+  });
   await test("Gemini errors and broken output do not use up the daily quota", async () => {
     const before = KV.get([...KV.keys()].find(k => k.startsWith("wc:anna:")));
     gemini = () => ({status: 429, json: {error: {message: "quota"}}});
     const busy = await call(wc, {method: "POST", cookie, body: {text: TEXT, task: TASK}});
     assert.strictEqual(busy.status, 429); assert.strictEqual(busy.json.error, "busy");
+    gemini = () => ({status: 402, json: {error: {code: 402, status: "FAILED_PRECONDITION", message: "Your prepayment credits are depleted."}}});
+    const noCredit = await call(wc, {method: "POST", cookie, body: {text: TEXT, task: TASK}});
+    assert.strictEqual(noCredit.status, 502); assert.strictEqual(noCredit.json.detail.gemini, 402);
+    assert.ok(/credits are depleted/.test(noCredit.json.detail.message), "reason passed to the user");
+    gemini = () => ({status: 200, json: {candidates: [{content: {parts: [{text: "{\"scores\":"}]}, finishReason: "MAX_TOKENS"}]}});
+    assert.strictEqual((await call(wc, {method: "POST", cookie, body: {text: TEXT, task: TASK}})).json.detail.reason, "MAX_TOKENS");
     gemini = () => ({status: 200, json: {candidates: [{content: {parts: [{text: "not json"}]}}]}});
     assert.strictEqual((await call(wc, {method: "POST", cookie, body: {text: TEXT, task: TASK}})).status, 502);
     gemini = () => ({status: 200, json: {promptFeedback: {blockReason: "SAFETY"}}});

@@ -29,7 +29,7 @@ async function api(path, opts){
 
 /* ---------------------------------------------------------------- local snapshot */
 function itemFor(ns, meta){
-  let raw = null; try{ raw = localStorage.getItem("cae:" + ns); }catch(e){}
+  let raw = null; try{ raw = localStorage.getItem(P.prefix + ns); }catch(e){}
   const t = meta[ns] || 1; /* data saved before sync existed counts as oldest */
   if(raw == null) return meta[ns] ? {t, d: 1} : null;
   try{ return {t, v: JSON.parse(raw)}; }catch(e){ return null; }
@@ -55,8 +55,8 @@ async function syncNow(opts){
     const full = !!opts.full || !s.lastSeq;
     const changes = collect(full);
     const sent = {}; Object.keys(changes).forEach(ns => { sent[ns] = changes[ns].t; });
-    const body = JSON.stringify({lastSeq: full ? 0 : s.lastSeq, changes});
-    const r = await api("api/sync", {method: "POST", body, keepalive: !!opts.keepalive && body.length < 60000});
+    const body = JSON.stringify({level: P.level, lastSeq: full ? 0 : s.lastSeq, changes});
+    const r = await api("/api/sync", {method: "POST", body, keepalive: !!opts.keepalive && body.length < 60000});
     if(r.status === 401){ user = null; setState({lastSeq: 0}); setStatus("idle"); renderChip(); return false; }
     if(!r.ok) throw new Error(r.status === 413 ? "příliš mnoho dat" : (r.j && r.j.error) || "HTTP " + r.status);
 
@@ -138,7 +138,7 @@ async function onCredential(resp){
   const msg = document.querySelector(".sy-msg");
   if(msg) msg.textContent = "Přihlašuji…";
   try{
-    const r = await api("api/auth", {method: "POST", body: JSON.stringify({credential: resp && resp.credential})});
+    const r = await api("/api/auth", {method: "POST", body: JSON.stringify({credential: resp && resp.credential})});
     if(!r.ok || !r.j || !r.j.user) throw new Error(r.status === 401 ? "Google přihlášení se nepodařilo ověřit." : "Server neodpověděl (" + r.status + ").");
     user = r.j.user;
     setState({lastSeq: 0});
@@ -150,7 +150,7 @@ async function onCredential(resp){
   }
 }
 async function logout(){
-  try{ await api("api/auth", {method: "DELETE"}); }catch(e){}
+  try{ await api("/api/auth", {method: "DELETE"}); }catch(e){}
   try{ window.google && window.google.accounts && window.google.accounts.id.disableAutoSelect(); }catch(e){}
   user = null; setState({lastSeq: 0, at: 0}); setStatus("idle");
   renderChip(); renderPop();
@@ -274,7 +274,7 @@ function mount(){
 
 async function init(){
   try{
-    const r = await api("api/auth");
+    const r = await api("/api/auth");
     if(!r.ok || !r.j || typeof r.j.enabled !== "boolean") return; /* no backend here: stay invisible */
     cfg = r.j; user = r.j.user || null;
   }catch(e){ return; }

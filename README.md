@@ -118,3 +118,13 @@ Ve Writingu je u každé úlohy tlačítko **✨ Ohodnotit AI**. Funkce `api/wri
 - Model `GEMINI_MODEL` (výchozí `gemini-flash-latest`), úroveň přemýšlení `GEMINI_THINKING` (výchozí `low`). Jedno hodnocení trvá desítky sekund, proto má funkce ve `vercel.json` `maxDuration` 180 s (Fluid compute).
 - Bezplatná verze Gemini může zadané texty používat ke zlepšování modelů Google.
 - Testy: `node scripts/check-write.js` (falešný Gemini a Redis).
+
+## B2 First (/b2)
+
+Druhá, úplně oddělená verze portálu pro **Cambridge B2 First (FCE)** běží na `/b2` (`b2/index.html`, `vercel.json` → rewrite `/b2`). Vpravo nahoře je přepínač **C1 | B2**; hlavní stránka si pamatuje poslední úroveň (`?c1` ji vynutí).
+
+- Sdílené: `js/core.js`, `css/app.css`, přihlášení a synchronizace (`js/sync*.js`, `api/`), service worker.
+- Vlastní pro B2: obsah a moduly v `b2/js/data/` a `b2/js/modules/` (všechny cesty absolutní, stránka je na `/b2` bez lomítka).
+- Data se nemíchají: B2 ukládá pod prefixem `b2:` (C1 pod `cae:`), na serveru má vlastní kopii `u:<google-sub>:b2`, záloha/obnova/smazání v B2 sahá jen na B2 data.
+- Bodování B2 podle oficiálních referenčních bodů Cambridge pro B2 First (škála 122–190, A 180–190 = C1, B 173–179, C 160–172, B1 140–159); AI hodnocení Writingu má vlastní instrukce s kritérii B2 First (140–190 slov).
+- Formát a pravidla pro obsah: `docs/B2-CONTRACT.md`. Lokálně: `node scripts/dev-server.js 8000` → `http://localhost:8000/b2`.

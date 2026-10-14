@@ -22,7 +22,9 @@ module.exports = async function handler(req, res){
     const lastSeq = Math.max(0, Math.floor(Number(body && body.lastSeq) || 0));
     const changes = body && body.changes && typeof body.changes === "object" && !Array.isArray(body.changes) ? body.changes : {};
 
-    const key = "u:" + sess.sub;
+    /* each exam level has its own copy: C1 keeps the original key, B2 First gets u:<sub>:b2 */
+    const level = body && body.level === "b2" ? "b2" : "c1";
+    const key = "u:" + sess.sub + (level === "c1" ? "" : ":" + level);
     const raw = await kv(["GET", key]);
     let doc = {seq: 0, items: {}};
     if(raw){ try{ doc = JSON.parse(raw); }catch(e){} }
