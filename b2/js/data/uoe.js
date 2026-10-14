@@ -1026,7 +1026,7 @@ const p4 = [
 {id:"t4-04", title:"Set 4",
  items:[
   {cat:"modal",a:"It's possible that Dan forgot about the meeting.",key:"MAY",text:"Dan ____ about the meeting.",ans:["may have forgotten"],parts:[["may have"],["forgotten"]],why:"Možnost v minulosti: may have + 3. tvar."},
-  {cat:"tense",a:"I last went swimming two years ago.",key:"BEEN",text:"I ____ two years.",ans:["have not been swimming for","have not gone swimming for"],parts:[["have not been swimming","have not gone swimming"],["for"]],why:"last … ago = haven't … for. Část 1: haven't been swimming, část 2: for."},
+  {cat:"tense",a:"I last went swimming two years ago.",key:"BEEN",text:"I ____ two years.",ans:["have not been swimming for"],parts:[["have not been swimming"],["for"]],why:"last … ago = haven't … for. Část 1: haven't been swimming, část 2: for."},
   {cat:"rep",a:"'Don't be late,' the teacher told us.",key:"WARNED",text:"The teacher ____ late.",ans:["warned us not to be"],parts:[["warned us"],["not to be"]],why:"warn sb not to do = varovat někoho, aby ne…"},
   {cat:"ger",a:"I'd prefer not to go out tonight.",key:"RATHER",text:"I'd ____ out tonight.",ans:["rather not go"],parts:[["rather"],["not go"]],why:"would rather not + infinitiv bez to."},
   {cat:"pas",a:"People believe that the painting is very valuable.",key:"BELIEVED",text:"The painting ____ very valuable.",ans:["is believed to be"],parts:[["is believed"],["to be"]],why:"Osobní trpný rod: X is believed to be…"},
@@ -1037,7 +1037,7 @@ const p4 = [
   {cat:"cond",a:"You can only go to the party if you finish your homework first.",key:"UNLESS",text:"You can't go to the party ____ your homework first.",ans:["unless you finish","unless you do"],parts:[["unless"],["you finish","you do"]],why:"only if = (v záporu) unless."},
   {cat:"sotoo",a:"It was such a cold day that we stayed indoors.",key:"SO",text:"The day was ____ we stayed indoors.",ans:["so cold that"],parts:[["so cold"],["that"]],why:"such a + adj + noun = so + adj + that."},
   {cat:"pv",a:"The fire alarm rang during the exam.",key:"WENT",text:"The fire alarm ____ during the exam.",ans:["went off"],parts:[["went"],["off"]],why:"ring (alarm) = go off."},
-  {cat:"comp",a:"Nobody in the team runs faster than Maria.",key:"FASTEST",text:"Maria is ____ in the team.",ans:["the fastest runner","the fastest"],parts:[["the fastest"],["runner"]],why:"nobody … faster than = the fastest (nejvyšší stupeň s the)."},
+  {cat:"comp",a:"Nobody in the team runs faster than Maria.",key:"FASTEST",text:"Maria ____ in the team.",ans:["is the fastest runner","runs the fastest","is the fastest"],parts:[["is","runs"],["the fastest"]],why:"nobody … faster than = the fastest (nejvyšší stupeň s the). Část 1: is / runs, část 2: the fastest."},
   {cat:"used",a:"When I was a child, I didn't like vegetables.",key:"USE",text:"When I was a child, I ____ vegetables.",ans:["did not use to like"],parts:[["did not use to"],["like"]],why:"Zápor od used to: didn't use to (bez -d)."},
   {cat:"link",a:"I'll write down your number so that I don't forget it.",key:"CASE",text:"I'll write down your number ____ it.",ans:["in case I forget"],parts:[["in case"],["I forget"]],why:"in case + přítomný čas = pro případ, že…"}
  ]},
@@ -1063,7 +1063,7 @@ const p4 = [
  items:[
   {cat:"modal",a:"Perhaps the shop is closed today.",key:"MIGHT",text:"The shop ____ today.",ans:["might be closed"],parts:[["might"],["be closed"]],why:"perhaps = might (možná)."},
   {cat:"used",a:"Getting up early is still difficult for me.",key:"USED",text:"I still haven't ____ up early.",ans:["got used to getting","gotten used to getting"],parts:[["got used to","gotten used to"],["getting"]],why:"get used to + -ing = zvyknout si na."},
-  {cat:"link",a:"I didn't go to the party because I was ill.",key:"DUE",text:"I didn't go to the party ____ illness.",ans:["due to my","due to"],parts:[["due to"],["my"]],why:"because + věta = due to + podstatné jméno (illness)."},
+  {cat:"link",a:"I didn't go to the party because I was ill.",key:"ILLNESS",text:"I didn't go to the party ____.",ans:["because of my illness","due to my illness","because of illness","due to illness"],parts:[["because of","due to"],["my illness","illness"]],why:"because + věta = because of / due to + podstatné jméno (ill → illness). Část 1: because of / due to, část 2: (my) illness."},
   {cat:"cond",a:"I regret not taking more photos on holiday.",key:"WISH",text:"I ____ more photos on holiday.",ans:["wish I had taken"],parts:[["wish I had"],["taken"]],why:"Lítost nad minulostí: wish + had + 3. tvar."},
   {cat:"ger",a:"It took me ages to find a parking space.",key:"SPENT",text:"I ____ for a parking space.",ans:["spent ages looking","spent ages searching"],parts:[["spent ages"],["looking","searching"]],why:"It took me X to do = I spent X doing."},
   {cat:"det",a:"My two brothers don't like football.",key:"NEITHER",text:"____ likes football.",ans:["neither of my brothers"],parts:[["neither of"],["my brothers"]],why:"Ani jeden ze dvou = neither of + sloveso v jednotném čísle (likes)."}
