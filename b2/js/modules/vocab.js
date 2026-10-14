@@ -125,7 +125,7 @@ function frame(stage, sub){
   stage.querySelectorAll(".sub-tabs .tab").forEach(b => b.onclick = () => P.go(ID, b.dataset.k));
   return stage.querySelector(".vb-body");
 }
-const speakBtn = (text, label) => P.tts && P.tts.supported ? `<button class="vb-ic vb-say" data-say="${esc(text)}" aria-label="${esc(label || "Přehrát výslovnost")}" title="${esc(label || "Výslovnost")}">▶</button>` : "";
+const speakBtn = (text, label) => P.tts && P.tts.supported ? `<button class="vb-ic vb-say" data-say="${esc(text)}" aria-label="${esc(label || "Přehrát výslovnost")}" title="${esc(label || "Výslovnost")}">${label ? "▶ věta" : "▶"}</button>` : "";
 function wireSpeak(root){ root.querySelectorAll(".vb-say").forEach(b => b.onclick = e => { e.stopPropagation(); P.tts.stop(); P.tts.speak(b.dataset.say, {lang:"en-GB"}); }); }
 function filterChips(onChange){
   const s = settings();
