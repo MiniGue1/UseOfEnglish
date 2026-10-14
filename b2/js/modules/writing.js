@@ -132,7 +132,7 @@ if(!document.getElementById("wb-style")){
 .wb-wc.ok{border-color:var(--green);color:var(--green)} .wb-wc.near{border-color:#C98A00;color:#C98A00} .wb-wc.bad{border-color:var(--red);color:var(--red)}
 .wb-ta{min-height:300px!important}
 .wb-check label{display:flex;gap:8px;align-items:flex-start;margin:6px 0;font-size:15px}
-.wb-an li{margin:4px 0;font-size:15px} .wb-an .good{color:var(--green)} .wb-an .warn{color:var(--red)}
+.wb-an li{margin:4px 0;font-size:15px} .wb-an .good{color:var(--green)} .wb-an .warn{color:var(--red)} .wb-an .info{color:var(--muted)}
 .wb-compare{display:grid;grid-template-columns:1fr;gap:12px}
 @media(min-width:720px){.wb-compare{grid-template-columns:1fr 1fr}}
 .wb-col{border:1px solid var(--rule);border-radius:6px;padding:12px 14px;font-family:var(--serif);font-size:16px;line-height:1.6;background:var(--sheet)}
@@ -206,7 +206,7 @@ function renderLessons(el){
 }
 function lessonTasks(l){
   return allTasks().filter(t => l.type === "essay" ? t.part === 1
-    : l.type === "email" ? isMail(t) && (!l.register || t.register === l.register)
+    : l.type === "email" ? isMail(t) && (!l.reg || t.register === l.reg)
     : t.type === l.type);
 }
 function renderLesson(stage, id){
@@ -264,7 +264,7 @@ function promptHTML(t, opts){
 }
 
 /* ---------- heuristic analyzer (B2: clear, accurate, natural – never pushes over-formal style) ---------- */
-const LINKERS = ["however","also","in addition","what is more","as well as","although","even though","though","whereas","while","despite","in spite of","on the other hand","on top of that","because","since","as a result","so that","therefore","this means","firstly","first of all","to begin with","secondly","finally","lastly","for example","for instance","such as","in particular","especially","as long as","unless","otherwise","instead","in my opinion","in my view","personally","in conclusion","to sum up","all in all","overall","to conclude","besides","apart from","anyway","actually","of course","after all","in fact","so","then","at first","in the end","after that","having said that","as for","that is why","that's why","by contrast","in contrast","when it comes to","not only","on the negative side","on the positive side","as a result"];
+const LINKERS = ["however","also","in addition","what is more","as well as","although","even though","though","whereas","while","despite","in spite of","on the other hand","on top of that","because","since","as a result","so that","therefore","this means","firstly","first of all","to begin with","secondly","finally","lastly","for example","for instance","such as","in particular","especially","as long as","unless","otherwise","instead","in my opinion","in my view","personally","in conclusion","to sum up","all in all","overall","to conclude","besides","apart from","anyway","actually","of course","after all","in fact","so","then","at first","in the end","after that","having said that","as for","that is why","that's why","by contrast","in contrast","when it comes to","not only","on the negative side","on the positive side","if","when","another","instead","as well","the only","once","until","whenever","which means"];
 const CONTR = /\b(?:don't|doesn't|didn't|can't|won't|isn't|aren't|wasn't|weren't|haven't|hasn't|hadn't|wouldn't|shouldn't|couldn't|i'm|i've|i'd|i'll|you're|we're|they're|it's|that's|there's|let's|we'll|you'll|they'll|he's|she's|what's|you've|we've|they've)\b/gi;
 const STOP = new Set("the a an and or but of to in on at for with by from as is are was were be been being it this that these those which who whom whose what when where why how not no can could would should may might must will shall do does did have has had their there they them its his her our your you we i he she my me us than then also very more most some such into about over only other so if just because people really think".split(" "));
 const IRREG = "done|made|given|taken|seen|known|shown|built|held|found|thought|brought|bought|taught|told|said|paid|sent|spent|kept|left|lost|met|put|set|run|cut|chosen|spoken|written|driven|eaten|grown|drawn|thrown|broken|forgotten|hidden|understood|sold|won|worn|born".split("|");
@@ -290,20 +290,21 @@ function analyze(text, task){
   /* repetition: headings/titles are ignored, and words from the task itself (the topic) may naturally recur more often */
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
   const body = lines.filter(l => !shortHead(l)).join(" ");
-  const taskWords = new Set([t0(task.question), t0(task.title), t0(task.prompt), t0(task.notice), ...(task.points || []).map(t0), ...(task.require || []).map(t0)].join(" ").match(/[a-z']+/g) || []);
-  const lw = (body.toLowerCase().match(/[a-z']+/g) || []);
+  const stem = w => w.length > 4 ? w.replace(/s$/, "") : w;
+  const taskWords = new Set(([t0(task.question), t0(task.title), t0(task.prompt), t0(task.notice), ...(task.points || []).map(t0), ...(task.require || []).map(t0), ...lines.filter(shortHead).map(t0)].join(" ").match(/[a-z]+/g) || []).map(stem));
+  const lw = (body.toLowerCase().match(/[a-z']+/g) || []).filter(w => !w.includes("'"));
   const freq = {}; lw.forEach(w => { if(w.length >= 4 && !STOP.has(w)) freq[w] = (freq[w] || 0) + 1; });
-  const rep = Object.entries(freq).filter(([w, c]) => c >= (taskWords.has(w) || taskWords.has(w.replace(/s$/, "")) ? 7 : 4)).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const rep = Object.entries(freq).filter(([w, c]) => c >= (taskWords.has(stem(w)) ? 10 : 5)).sort((a, b) => b[1] - a[1]).slice(0, 6);
   if(rep.length) add("warn", "Často opakovaná slova: " + rep.map(([w, c]) => `${w} (${c}×)`).join(", ") + ". Zkus synonymum nebo zájmeno (it, this, they…).");
   const low = " " + text.toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ") + " ";
   const used = LINKERS.filter(l => new RegExp("\\b" + l.replace(/ /g, "\\s+") + "\\b").test(low));
-  add(used.length >= 4 ? "good" : "warn", `Různé spojovací výrazy: ${used.length}${used.length ? " (" + used.slice(0, 10).join(", ") + ")" : ""}. ${used.length >= 4 ? "" : "Přidej pár přirozených spojek: however, although, because, so, for example, on the other hand."}`);
+  add(used.length >= 3 ? "good" : "warn", `Různé spojovací výrazy: ${used.length}${used.length ? " (" + used.slice(0, 10).join(", ") + ")" : ""}. ${used.length >= 3 ? "" : "Přidej pár přirozených spojek: however, although, because, so, for example, on the other hand."}`);
   /* examiners mark down mechanical, over-formal linking – B2 is about clear, natural English */
   const heavy = (low.match(/\b(moreover|furthermore|nevertheless|nonetheless|consequently|thus|hence|whereby|albeit|notwithstanding)\b/g) || []).length;
   if(heavy > 2) add("warn", `Knižní spojky (moreover, furthermore, nevertheless…) ${heavy}× – na text o 170 slovech je to moc a zní to strojeně. Stačí however, also, so, but, what is more.`);
   const formalish = task.register === "formal" || task.type === "essay" || task.type === "report";
   const cons = low.match(CONTR) || [];
-  if(formalish && cons.length) add("warn", `Stažené tvary v ${task.register === "formal" ? "formálním" : "neutrálním"} textu: ${[...new Set(cons)].join(", ")} → v ${task.type === "essay" ? "eseji" : task.type === "report" ? "reportu" : "formálním dopisu"} raději plné tvary (do not, it is).`);
+  if(formalish && cons.length) add("warn", `Stažené tvary ${task.register === "formal" ? "ve formálním" : "v neutrálním"} textu: ${[...new Set(cons)].join(", ")} → ${task.type === "essay" ? "v eseji" : task.type === "report" ? "v reportu" : "ve formálním dopise"} raději plné tvary (do not, it is).`);
   if(task.register === "informal" && !cons.length) add("warn", "E-mail kamarádovi bez stažených tvarů zní strojeně – piš I’m, you’ll, don’t, it’s…");
   if(formalish && /\b(gonna|wanna|gotta|kids|stuff|guys|cool|awesome|super)\b|!{2,}/i.test(text)) add("warn", "Hovorové výrazy (kids, stuff, gonna, cool…) nebo vícenásobné vykřičníky do tohoto typu textu nepatří.");
   if(task.register === "informal" && /\b(gonna|wanna|u|ur|lol|btw|omg)\b/i.test(text)) add("warn", "Neformální neznamená SMS styl – gonna/wanna/u/lol do e-mailu u zkoušky nepiš.");
@@ -312,18 +313,20 @@ function analyze(text, task){
   const pas = (low.match(new RegExp("\\b(?:am|is|are|was|were|be|been|being)\\s+(?:\\w+ly\\s+)?(?:\\w+ed|" + IRREG.join("|") + ")\\b", "g")) || []).length;
   const cond = (low.match(/\bif\b|\bunless\b|\bas long as\b|\bwould\b|\b\w+'d\b/g) || []).length;
   const rel = (low.match(/\b(who|which|whose)\b|, where\b/g) || []).length;
+  const sub = (low.match(/\b(because|although|even though|when|while|whenever|unless|so that|as soon as|once|until)\b/g) || []).length;
   const inv = text.split(/(?<=[.!?])\s+|\n/).filter(s => /^\s*(Not only|Never (have|has|had|did|do|will|would)|Rarely|Seldom|Only (when|by|if|once|after|then)|Little (did|do)|Hardly (had|did)|No sooner|Under no circumstances|Not until|At no time|Nowhere|Were (I|we|you|they|he|she|it|this|these)|Had (I|we|you|they|he|she|it))\b/.test(s)).length;
   const cleft = (text.match(/\bWhat [^.?!]{3,60}\b(is|was)\b|\bIt (is|was) [^.?!]{2,60} (that|who) /g) || []).length;
-  add(inv > 1 ? "warn" : rel + cond === 0 ? "warn" : "good", `Struktury: vztažné věty (who/which/where) ${rel}, podmínky/would ~${cond}, trpný rod ~${pas}${inv ? `, inverze ${inv}` : ""}. ` +
+  const simple = rel + cond + sub < 2;
+  add(inv > 1 || simple ? "warn" : "good", `Struktury: vztažné věty (who/which/where) ${rel}, podmínky/would ~${cond}, vedlejší věty (because, when, although…) ${sub}, trpný rod ~${pas}${inv ? `, inverze ${inv}` : ""}. ` +
     (inv > 1 ? "Inverze na B2 vůbec nepotřebuješ – zní vyumělkovaně a snadno se v nich udělá chyba. Napiš to normálním slovosledem."
-      : rel + cond === 0 ? "Přidej pár souvětí: vztažnou větu (…, which is…) nebo podmínku (If…, …would…). Na B2 stačí, když jsou přesné."
+      : simple ? "Přidej pár souvětí: vztažnou větu (…, which is…) nebo podmínku (If…, …would…). Na B2 stačí, když jsou přesné."
       : "Dobrá škála. Na Language 5 nepotřebuješ vzácná slova ani inverze – rozhoduje přesnost a přirozenost." + (cleft > 1 ? " (Vytýkací věty What I like… jsou fajn, ale ne víc než jednou.)" : "")));
   const typos = (D().typos || []).filter(([w]) => new RegExp("\\b" + w + "\\b", "i").test(text));
   if(typos.length) add("warn", "Možné překlepy: " + typos.map(([w, r]) => `${w} → ${r}`).join(", ") + ".");
-  (D().traps || []).forEach(([re, tip]) => {
+  (D().traps || []).forEach(([re, tip, kind]) => {
     const isCaps = /english\|czech/.test(re);
     let m = null; try{ m = text.match(new RegExp(re, isCaps ? "g" : "gi")); }catch(e){}
-    if(m) add("warn", (isCaps ? `Malé písmeno: ${[...new Set(m)].join(", ")}. ` : `„${m[0]}“: `) + tip);
+    if(m) add(kind === "info" ? "info" : "warn", (isCaps ? `Malé písmeno: ${[...new Set(m)].join(", ")}. ` : kind === "info" ? `Zkontroluj význam „${m[0]}“: ` : `„${m[0]}“: `) + tip);
   });
   if(task.type === "report"){
     const heads = lines.filter(shortHead).length;
@@ -351,7 +354,7 @@ function analyze(text, task){
     }
   }
   if(task.part === 1){
-    const hit = task.points.filter(p => p.toLowerCase().split(/\W+/).filter(w => w.length > 4 && !STOP.has(w)).some(w => low.includes(w.slice(0, 5))));
+    const hit = task.points.filter(p => p.toLowerCase().split(/\W+/).filter(w => w.length >= 4 && !STOP.has(w)).some(w => low.includes(w.slice(0, 5))));
     add(hit.length === task.points.length ? "good" : "warn", `Poznámky ze zadání zmíněné v textu (odhad): ${hit.length ? hit.map(h => "„" + h + "“").join(", ") : "žádná"}. ${hit.length === task.points.length ? "" : "Esej musí rozebrat OBĚ poznámky."}`);
     const own = OWN_SIGNAL.exec(text);
     add(own || pc >= 5 ? "good" : "warn", own || pc >= 5
@@ -363,7 +366,7 @@ function analyze(text, task){
   return out;
 }
 function analysisHTML(items){
-  return `<p class="note">⚠ Jde o heuristickou kontrolu (počítání, vzory), ne o hodnocení zkoušejícího. Obsah, logiku a přesnost posuď podle kritérií – nebo použij AI hodnocení.</p><ul class="wb-an">${items.map(i => `<li class="${i.cls}">${i.cls === "good" ? "✓" : "•"} ${esc(i.msg)}</li>`).join("")}</ul>`;
+  return `<p class="note">⚠ Jde o heuristickou kontrolu (počítání, vzory), ne o hodnocení zkoušejícího. Obsah, logiku a přesnost posuď podle kritérií – nebo použij AI hodnocení.</p><ul class="wb-an">${items.map(i => `<li class="${i.cls}">${i.cls === "good" ? "✓" : i.cls === "info" ? "ℹ" : "•"} ${esc(i.msg)}</li>`).join("")}</ul>`;
 }
 
 /* ---------- model with highlighted callouts ---------- */

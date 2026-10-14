@@ -58,6 +58,7 @@ const lessonIds = new Set();
   lessonIds.add(l.id);
   ok(LESSONS.includes(l.id), "lesson " + l.id + ": unexpected id");
   ["title", "intro", "register", "type", "tip"].forEach(k => ok(str(l[k]), "lesson " + l.id + ": " + k));
+  if (l.type === "email") ok(["formal", "informal"].includes(l.reg), "lesson " + l.id + ": email lesson needs reg formal|informal (filters its tasks)");
   ok(Array.isArray(l.structure) && l.structure.length >= 3 && l.structure.every(str), "lesson " + l.id + ": structure >= 3");
   ok(Array.isArray(l.plan) && l.plan.length >= 3 && l.plan.every(p => str(p.h) && str(p.t)), "lesson " + l.id + ": plan");
   ok(Array.isArray(l.phrases) && l.phrases.length >= 4 && l.phrases.every(g => str(g.fn) && Array.isArray(g.items) && g.items.length >= 3 && g.items.every(str)), "lesson " + l.id + ": phrases (>= 4 groups, >= 3 items)");
@@ -75,7 +76,7 @@ const essayFns = essay.phrases.map(g => g.fn.toLowerCase()).join("|");
 ok(Array.isArray(W.typos) && W.typos.length >= 30 && W.typos.every(p => Array.isArray(p) && p.length === 2 && str(p[0]) && str(p[1]) && p[0] !== p[1]), "typos: [wrong,right] pairs");
 ok(new Set((W.typos || []).map(p => p[0])).size === (W.typos || []).length, "typos: duplicate wrong spelling");
 ok(Array.isArray(W.traps) && W.traps.length >= 20, "traps: >= 20");
-(W.traps || []).forEach((t, i) => { try { new RegExp(t[0], "gi"); } catch (e) { fail("trap " + i + ": bad regex " + t[0]); } ok(str(t[1]), "trap " + i + ": tip"); });
+(W.traps || []).forEach((t, i) => { try { new RegExp(t[0], "gi"); } catch (e) { fail("trap " + i + ": bad regex " + t[0]); } ok(str(t[1]), "trap " + i + ": tip"); ok(t.length === 2 || t[2] === "info", "trap " + i + ": 3rd element may only be 'info'"); });
 const trapHit = (re, s) => new RegExp(re, "i").test(s);
 [["I am agree with you", true], ["If it will rain tomorrow, we stay", true], ["I have 18 years", true], ["I am 18 years old", false], ["I look forward to hear from you", true]]
   .forEach(([s, exp]) => ok((W.traps || []).some(t => !/english\|czech/.test(t[0]) && trapHit(t[0], s)) === exp, "traps: '" + s + "' should " + (exp ? "" : "not ") + "be flagged"));

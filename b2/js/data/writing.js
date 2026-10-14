@@ -166,7 +166,7 @@ lessons: [
     {bad: "Článek bez nadpisu a bez odstavců", good: "Nadpis + 4 krátké odstavce", why: "Nadpis a jasné členění patří ke konvencím článku (Communicative Achievement)."}
   ]
  },
- {id: "email-informal", title: "Neformální e-mail / dopis", type: "email", register: "informal",
+ {id: "email-informal", title: "Neformální e-mail / dopis", type: "email", reg: "informal",
   intro: "Neformální e-mail píšeš kamarádovi nebo známému, který ti napsal. V zadání je jeho zpráva s otázkami – musíš odpovědět na všechny (často rada, doporučení, popis zkušenosti). Má znít přirozeně, jako skutečný e-mail, ale pořád má mít odstavce a pestrou gramatiku.",
   structure: [
     "Oslovení: Hi Sam, / Dear Anna,",
@@ -200,7 +200,7 @@ lessons: [
     {bad: "gonna, wanna, u, lol", good: "going to, want to, you", why: "Neformální neznamená SMS styl."}
   ]
  },
- {id: "email-formal", title: "Formální e-mail / dopis", type: "email", register: "formal",
+ {id: "email-formal", title: "Formální e-mail / dopis", type: "email", reg: "formal",
   intro: "Formální dopis nebo e-mail píšeš někomu, koho neznáš nebo kdo je ve vyšší pozici: řediteli, firmě, organizátorovi akce. Na B2 je nejčastější žádost o práci/brigádu (letter of application), dále stížnost nebo návrh. Hlavní je jasný účel v první větě, zdvořilý tón a správné oslovení a rozloučení.",
   structure: [
     "Oslovení: Dear Sir or Madam, (neznám jméno) / Dear Ms Grant, (znám jméno).",
@@ -323,7 +323,7 @@ typos: [
   ["knowledges","knowledge"],["staffs","staff"],["luggages","luggage"]
 ],
 
-/* ---------- Czech-speaker traps detected by the analyzer (regex source, Czech tip) ---------- */
+/* ---------- Czech-speaker traps detected by the analyzer: [regex source, Czech tip, "info" = only a meaning check, not an error] ---------- */
 traps: [
   ["\\bam agree\\b|\\bis agree\\b|\\bare agree\\b", "„I am agree“ → I agree."],
   ["\\baccording to me\\b", "„according to me“ → in my opinion / I believe."],
@@ -358,9 +358,9 @@ traps: [
   ["\\bbecause of (?:i|you|we|they|he|she|it is|there)\\b", "because of + podstatné jméno; před větou jen because."],
   ["\\bpossibility to\\b", "possibility to do → opportunity / chance to do."],
   ["\\bhow (?:does )?it looks? like\\b", "how it looks like → what it looks like / how it looks."],
-  ["\\bfunny\\b", "funny = vtipný (k smíchu). Pokud myslíš „zábavný, příjemný“, napiš fun / enjoyable."],
-  ["\\beventually\\b", "eventually = nakonec (ne „případně“) – zkontroluj význam; případně = possibly / if necessary."],
-  ["\\bactual(?:ly)?\\b", "actual(ly) = skutečný/vlastně, ne „aktuální“ – aktuální = current / currently."],
+  ["\\bfunny\\b", "funny = vtipný (k smíchu). Pokud myslíš „zábavný, příjemný“, napiš fun / enjoyable.", "info"],
+  ["\\beventually\\b", "eventually = nakonec (ne „případně“) – zkontroluj význam; případně = possibly / if necessary.", "info"],
+  ["\\bactual(?:ly)?\\b", "actual(ly) = skutečný/vlastně, ne „aktuální“ – aktuální = current / currently.", "info"],
   ["\\bcontrol(?:led)? (?:my|your|the|our) (?:homework|text|answers?|essay|work)\\b", "control = ovládat/řídit; zkontrolovat = check."],
   ["\\balthough\\b[^.!?]*,\\s*but\\b", "although…, but… → použij jen jednu spojku."],
   ["\\b(?:english|czech|german|french|spanish|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|april|june|july|august|september|october|november|december)\\b", "Národnosti, jazyky, dny a měsíce se v angličtině píšou s velkým písmenem."]
@@ -875,7 +875,7 @@ To sum up, I think zoos should only keep animals that can live well in captivity
 
 Some of them certainly are. Many famous athletes and musicians have become successful only after years of hard work. Their stories show young people that talent alone is not enough and that it is worth practising and not giving up.
 
-However, the lifestyle of some celebrities sends the wrong message. Expensive cars, parties and designer clothes can make teenagers believe that money and fame are the most important things in life. Some stars also behave badly in public, and their fans may copy them.
+However, the lifestyle of some celebrities sends the wrong message. Expensive cars, parties and designer clothes can make teenagers believe that money and fame are the most important things in life. Some stars also behave badly in public, and fans who admire them may copy them.
 
 Another point is that a lot of celebrities use their fame to support good causes. When a popular singer raises money for charity or speaks openly about mental health, millions of young people listen.
 
